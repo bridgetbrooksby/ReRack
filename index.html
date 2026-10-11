@@ -1,0 +1,947 @@
+<meta charset="utf-8">
+<title>ReRack</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: a phone-width app column. Sticky header with location + credit, bottom tab bar,
+   every price is a hang tag. Denim blue for actions, marigold "thread" for store credit. */
+:root {
+  --bg: #F2F4F8; --surface: #FFFFFF; --ink: #141B2D; --muted: #5A6377; --line: #D7DDE8; --soft: #E7ECF5;
+  --denim: #2B4C8C; --denim-ink: #FFFFFF; --thread: #E2A321; --thread-soft: #FBF0D9; --thread-ink: #2A1E05;
+  --ok: #1E7A4C; --ok-soft: #DDF1E6; --warn: #96600A; --warn-soft: #FAEED6; --bad: #A93535; --bad-soft: #F7E0E0;
+  --sw1: #DCE5F5; --sw2: #F5E3C8; --sw3: #D6ECE1; --sw4: #F2D9DD; --sw5: #E4DDF2; --sw6: #E6EAEF; --swink: #2B3A5A;
+  --f-display: "Unbounded", "Trebuchet MS", system-ui, sans-serif;
+  --f-body: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r: 10px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0E1320; --surface: #172032; --ink: #E7EBF3; --muted: #9AA3B7; --line: #2A3449; --soft: #1E2840;
+  --denim: #86A6E8; --denim-ink: #0E1320; --thread: #F0B649; --thread-soft: #3A2E15; --thread-ink: #1E1503;
+  --ok: #63C893; --ok-soft: #173327; --warn: #E6AE45; --warn-soft: #362A12; --bad: #EF8080; --bad-soft: #3A1C1F;
+  --sw1: #22304D; --sw2: #3A3020; --sw3: #1D382C; --sw4: #3B2328; --sw5: #2D2644; --sw6: #252C39; --swink: #C8D3EA;
+  color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --bg: #0E1320; --surface: #172032; --ink: #E7EBF3; --muted: #9AA3B7; --line: #2A3449; --soft: #1E2840;
+  --denim: #86A6E8; --denim-ink: #0E1320; --thread: #F0B649; --thread-soft: #3A2E15; --thread-ink: #1E1503;
+  --ok: #63C893; --ok-soft: #173327; --warn: #E6AE45; --warn-soft: #362A12; --bad: #EF8080; --bad-soft: #3A1C1F;
+  --sw1: #22304D; --sw2: #3A3020; --sw3: #1D382C; --sw4: #3B2328; --sw5: #2D2644; --sw6: #252C39; --swink: #C8D3EA;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--f-body); -webkit-font-smoothing: antialiased; }
+button, input, select, textarea { font: inherit; color: inherit; }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+p { margin: 0; }
+a { color: var(--denim); }
+:focus-visible { outline: 2px solid var(--denim); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+.app { max-width: 560px; margin: 0 auto; padding-inline: 16px; padding-block: 0 96px; }
+.stack { display: flex; flex-direction: column; gap: 14px; }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.spread { justify-content: space-between; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.eyebrow { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+.display { font-family: var(--f-display); font-weight: 700; letter-spacing: -.01em; }
+
+/* Header */
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 12px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
+.brand { font-family: var(--f-display); font-weight: 700; font-size: 19px; letter-spacing: -.02em; margin-right: auto; }
+.brand span { color: var(--denim); }
+.chip-btn { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 12px; font-size: 13px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; }
+.credit-pill { background: var(--thread); color: var(--thread-ink); border-color: transparent; font-family: var(--f-mono); font-weight: 500; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
+.dot.travel { background: var(--thread); }
+
+/* Bottom nav */
+.nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; background: var(--surface); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); }
+.nav-inner { max-width: 560px; margin: 0 auto; display: flex; }
+.nav button { flex: 1; min-width: 0; background: none; border: 0; padding: 8px 2px 10px; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; color: var(--muted); cursor: pointer; position: relative; }
+.nav button[aria-current="page"] { color: var(--denim); font-weight: 700; }
+.nav svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.badge { position: absolute; top: 4px; left: calc(50% + 6px); background: var(--thread); color: var(--thread-ink); border-radius: 999px; font-size: 10px; min-width: 16px; padding: 0 4px; font-weight: 700; }
+
+/* Surfaces */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; }
+.notice { border-radius: var(--r); padding: 12px 14px; font-size: 14px; background: var(--soft); }
+.notice.warn { background: var(--warn-soft); color: var(--ink); }
+.notice.bad { background: var(--bad-soft); }
+.notice.ok { background: var(--ok-soft); }
+.notice.thread { background: var(--thread-soft); }
+.section-title { font-family: var(--f-display); font-size: 16px; font-weight: 500; }
+hr.stitch { border: 0; border-top: 1.5px dashed var(--line); margin: 4px 0; width: 100%; }
+
+/* Buttons & fields */
+.btn { border: 0; border-radius: 8px; padding: 11px 16px; font-weight: 700; cursor: pointer; background: var(--denim); color: var(--denim-ink); text-align: center; }
+.btn.block { width: 100%; }
+.btn.ghost { background: transparent; color: var(--denim); border: 1.5px solid var(--denim); }
+.btn.quiet { background: var(--soft); color: var(--ink); }
+.btn.danger { background: transparent; color: var(--bad); border: 1.5px solid var(--bad); }
+.btn.small { padding: 7px 12px; font-size: 13px; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field label { font-size: 13px; font-weight: 500; }
+.field input, .field select, .field textarea { border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 10px 12px; width: 100%; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.grid3 { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px; }
+@media (max-width: 420px) { .grid3 { grid-template-columns: 1fr 1fr; } .grid3 > :first-child { grid-column: 1 / -1; } }
+.err { color: var(--bad); font-size: 13px; }
+
+/* Chips */
+.chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.chips button { flex: none; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 12px; font-size: 13px; cursor: pointer; }
+.chips button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.pill { display: inline-block; border-radius: 999px; padding: 2px 9px; font-size: 12px; font-weight: 500; background: var(--soft); white-space: nowrap; }
+.pill.ok { background: var(--ok-soft); color: var(--ok); }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+.pill.bad { background: var(--bad-soft); color: var(--bad); }
+.pill.hot { background: var(--thread-soft); color: var(--warn); }
+
+/* Hang-tag price */
+.tag { position: relative; display: inline-flex; align-items: center; background: var(--thread); color: var(--thread-ink); font-family: var(--f-mono); font-weight: 500; font-size: 14px; padding: 3px 10px 3px 18px; clip-path: polygon(9px 0, 100% 0, 100% 100%, 9px 100%, 0 50%); border-radius: 0 4px 4px 0; font-variant-numeric: tabular-nums; }
+.tag::before { content: ""; position: absolute; left: 7px; top: 50%; width: 5px; height: 5px; margin-top: -2.5px; border-radius: 50%; background: var(--surface); }
+.tag.big { font-size: 20px; padding: 6px 14px 6px 24px; clip-path: polygon(12px 0, 100% 0, 100% 100%, 12px 100%, 0 50%); }
+.tag.big::before { left: 9px; width: 7px; height: 7px; margin-top: -3.5px; }
+
+/* Product grid */
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; text-align: left; padding: 0; cursor: pointer; display: flex; flex-direction: column; }
+.card:hover { border-color: var(--denim); }
+.card-body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.card-title { font-weight: 700; font-size: 14px; line-height: 1.25; }
+.tile { aspect-ratio: 4 / 5; max-width: 100%; display: grid; place-items: center; position: relative; overflow: hidden; }
+.tile svg { width: 46%; height: auto; fill: var(--swink); opacity: .8; }
+.tile img { width: 100%; height: 100%; object-fit: cover; }
+.tile .sold { position: absolute; inset: auto 8px 8px auto; }
+.sw1 { background: var(--sw1); } .sw2 { background: var(--sw2); } .sw3 { background: var(--sw3); }
+.sw4 { background: var(--sw4); } .sw5 { background: var(--sw5); } .sw6 { background: var(--sw6); }
+.in-bag { position: absolute; top: 8px; left: 8px; }
+
+/* Lists */
+.list { display: flex; flex-direction: column; }
+.li { display: flex; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.li:last-child { border-bottom: 0; }
+.li .grow { flex: 1; min-width: 0; }
+.thumb { width: 52px; height: 64px; flex: none; border-radius: 6px; overflow: hidden; }
+.thumb .tile { aspect-ratio: auto; width: 100%; height: 100%; }
+.thumb .tile svg { width: 60%; }
+.sum { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; font-variant-numeric: tabular-nums; }
+.sum .total { font-weight: 700; font-size: 17px; }
+.sum dt, .sum dd { margin: 0; }
+.sum dd { text-align: right; font-family: var(--f-mono); }
+
+/* Steps */
+.steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; counter-reset: s; }
+.steps li { counter-increment: s; font-size: 12px; line-height: 1.3; display: flex; flex-direction: column; gap: 4px; }
+.steps li::before { content: counter(s); font-family: var(--f-mono); width: 24px; height: 24px; border-radius: 50%; border: 1.5px dashed var(--denim); color: var(--denim); display: grid; place-items: center; font-size: 12px; }
+
+/* Photos */
+.photos { display: flex; gap: 8px; flex-wrap: wrap; }
+.photos img, .photo-add { width: 72px; height: 88px; object-fit: cover; border-radius: 6px; }
+.photo-add { border: 1.5px dashed var(--denim); display: grid; place-items: center; color: var(--denim); font-size: 12px; text-align: center; cursor: pointer; padding: 4px; position: relative; }
+.photo-add input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.ph-wrap { position: relative; }
+.ph-wrap button { position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; border-radius: 50%; border: 0; background: var(--ink); color: var(--bg); font-size: 13px; line-height: 1; cursor: pointer; }
+
+/* Ticket-ish blocks for labels and codes */
+.ticket { border: 1.5px dashed var(--ink); border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+.code { font-family: var(--f-mono); font-size: 22px; letter-spacing: .14em; }
+
+/* Sheet */
+.scrim { position: fixed; inset: 0; z-index: 10; background: rgb(8 12 22 / .5); display: flex; align-items: flex-end; justify-content: center; }
+.sheet { background: var(--surface); width: 100%; max-width: 560px; max-height: 90%; overflow-y: auto; border-radius: 16px 16px 0 0; padding: 20px 16px calc(20px + env(safe-area-inset-bottom, 0px)); }
+.sheet .tile { border-radius: var(--r); aspect-ratio: 4 / 3; }
+.close { float: right; border: 0; background: var(--soft); border-radius: 50%; width: 32px; height: 32px; cursor: pointer; font-size: 16px; }
+
+/* Onboarding */
+.hero { padding-block: 28px 8px; display: flex; flex-direction: column; gap: 14px; }
+.hero h1 { font-family: var(--f-display); font-size: clamp(30px, 8vw, 44px); line-height: 1.02; letter-spacing: -.03em; }
+.hero h1 em { font-style: normal; color: var(--denim); }
+.compare { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.compare > div { border-radius: var(--r); padding: 14px; display: flex; flex-direction: column; gap: 6px; }
+.compare .them { background: var(--soft); }
+.compare .us { background: var(--thread-soft); }
+.compare .num { font-family: var(--f-mono); font-size: 26px; }
+.plan { border: 2px solid var(--denim); border-radius: var(--r); padding: 14px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+.credit-hero { background: var(--thread); color: var(--thread-ink); border-radius: var(--r); padding: 18px; display: flex; flex-direction: column; gap: 4px; }
+.credit-hero .num { font-family: var(--f-mono); font-size: 40px; line-height: 1.1; }
+
+.toast { position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 8px; z-index: 20; font-size: 14px; max-width: calc(100% - 32px); }
+.switch { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.switch input { width: 18px; height: 18px; accent-color: var(--denim); }
+.loc { display: flex; gap: 12px; align-items: flex-start; text-align: left; width: 100%; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 12px 14px; cursor: pointer; }
+.loc[aria-pressed="true"] { border: 2px solid var(--denim); padding: 11px 13px; }
+.loc .grow { flex: 1; min-width: 0; }
+</style>
+
+<div id="app"></div>
+<div id="sheet"></div>
+<div id="toast" class="toast" hidden></div>
+
+<script>
+/* ------------------------------------------------------------------
+   ReRack — clothing swap prototype. Everything lives in this file and
+   in the browser's local storage; there is no server yet.
+   Business rules are all in the CONFIG block so they're easy to tune.
+------------------------------------------------------------------- */
+
+// ===== CONFIG =====
+const MEMBERSHIP_PRICE = 6.99;
+// Addresses and hours are placeholders until real warehouses are leased.
+const LOCATIONS = {
+  provo: { id: 'provo', name: 'Provo Warehouse', short: 'Provo', area: 'Orem – Provo',
+    address: '1450 N State St, Provo, UT 84604', hours: 'Mon–Sat 10am–7pm',
+    // Membership is only open to these ZIPs (Provo + Orem). This is the location barrier.
+    zips: ['84601', '84602', '84603', '84604', '84605', '84606', '84057', '84058', '84059', '84097'] },
+  slc: { id: 'slc', name: 'Salt Lake Warehouse', short: 'Salt Lake', area: 'Salt Lake City',
+    address: '850 S 300 W, Salt Lake City, UT 84101', hours: 'Tue–Sat 11am–7pm', zips: [] },
+  stg: { id: 'stg', name: 'St. George Warehouse', short: 'St. George', area: 'St. George',
+    address: '400 E Tabernacle St, St. George, UT 84770', hours: 'Wed–Sat 11am–6pm', zips: [] },
+};
+// base = what a typical item in this category resells for, mall brand, new condition
+const CATS = {
+  tee: { label: 'T-shirt', base: 10, art: 'top', group: 'tops' },
+  top: { label: 'Top / blouse', base: 14, art: 'top', group: 'tops' },
+  sweater: { label: 'Sweater / sweatshirt', base: 20, art: 'top', group: 'tops' },
+  active: { label: 'Activewear', base: 16, art: 'top', group: 'tops' },
+  jeans: { label: 'Jeans', base: 24, art: 'bottom', group: 'bottoms' },
+  pants: { label: 'Pants', base: 18, art: 'bottom', group: 'bottoms' },
+  shorts: { label: 'Shorts', base: 12, art: 'bottom', group: 'bottoms' },
+  skirt: { label: 'Skirt', base: 16, art: 'dress', group: 'dresses' },
+  dress: { label: 'Dress', base: 26, art: 'dress', group: 'dresses' },
+  jacket: { label: 'Jacket', base: 34, art: 'outer', group: 'outer' },
+  coat: { label: 'Coat', base: 48, art: 'outer', group: 'outer' },
+  sneakers: { label: 'Sneakers', base: 36, art: 'shoe', group: 'shoes' },
+  shoes: { label: 'Shoes / boots', base: 30, art: 'shoe', group: 'shoes' },
+  bag: { label: 'Bag', base: 28, art: 'bag', group: 'bags' },
+  accessory: { label: 'Accessory', base: 10, art: 'bag', group: 'bags' },
+};
+const GROUPS = { all: 'All', tops: 'Tops', bottoms: 'Bottoms', dresses: 'Dresses & skirts', outer: 'Outerwear', shoes: 'Shoes', bags: 'Bags & more' };
+const TIERS = {
+  budget: { label: 'Budget (Shein, Old Navy, Target)', mult: 0.7 },
+  mall: { label: 'Mall (H&M, Gap, American Eagle)', mult: 1 },
+  premium: { label: 'Premium (Lululemon, Levi\'s, Nike, Madewell)', mult: 1.4 },
+  designer: { label: 'Designer (Coach, Reformation, Agolde)', mult: 2.4 },
+};
+const CONDS = {
+  nwt: { label: 'New with tags', mult: 1 },
+  likenew: { label: 'Like new', mult: 0.85 },
+  good: { label: 'Good, light wear', mult: 0.65 },
+  fair: { label: 'Fair, visible wear', mult: 0.35 },
+};
+const TRENDS = {
+  hot: { label: 'Trending', mult: 1.3 },
+  current: { label: 'In style', mult: 1 },
+  classic: { label: 'Classic', mult: 0.9 },
+  dated: { label: 'Out of style', mult: 0.5 },
+};
+const DENY_REASONS = ['Not on-trend enough to resell', 'Too much wear or damage', 'Doesn\'t match the photos', 'Stains, odor, or pilling'];
+
+// Pricing rule: the shelf price is a fair resale value. The trader gets that value
+// minus a small markup ($2, +$1 if trending, +$1 if new/like new), so we never
+// charge more than a couple of dollars over what we paid.
+function valuate(cat, tier, cond, trend) {
+  const fair = CATS[cat].base * TIERS[tier].mult * CONDS[cond].mult * TRENDS[trend].mult;
+  const markup = 2 + (trend === 'hot' ? 1 : 0) + (cond === 'nwt' || cond === 'likenew' ? 1 : 0);
+  const payout = Math.max(1, Math.round(fair - markup));
+  // Typical buy-back stores pay roughly 30% of resale value.
+  const typical = Math.max(0.5, Math.round(fair * 0.3 * 2) / 2);
+  return { fair, markup, payout, price: payout + markup, typical };
+}
+function suggestDenial(cond, trend) {
+  if (cond === 'fair') return DENY_REASONS[1];
+  if (trend === 'dated') return DENY_REASONS[0];
+  return null;
+}
+
+// ===== HELPERS =====
+const KEY = 'rerack-v1';
+const money = n => '$' + (Math.round(n * 100) / 100).toFixed(2);
+const uid = p => p + '-' + Math.random().toString(36).slice(2, 7).toUpperCase();
+const code = () => Math.random().toString(36).slice(2, 8).toUpperCase();
+const daysAgo = d => new Date(Date.now() - d * 864e5).toISOString();
+const daysAhead = d => new Date(Date.now() + d * 864e5).toISOString();
+const fmtDate = iso => new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const opts = (obj, sel) => Object.entries(obj).map(([k, v]) => `<option value="${k}"${k === sel ? ' selected' : ''}>${esc(v.label ?? v)}</option>`).join('');
+const swatch = id => 'sw' + (1 + [...String(id)].reduce((a, c) => a + c.charCodeAt(0), 0) % 6);
+
+const ART = {
+  top: '<path d="M10 4 L13 3 Q16 6 19 3 L22 4 L29 10 L25 15 L22 12 L22 29 L10 29 L10 12 L7 15 L3 10 Z"/>',
+  bottom: '<path d="M8 3 H24 L26 29 H18.5 L16 11 L13.5 29 H6 Z"/>',
+  dress: '<path d="M12 3 H14 Q16 6 18 3 H20 L19 10 L26 29 H6 L13 10 Z"/>',
+  outer: '<path d="M11 3 L16 9 L21 3 L28 7 L27 29 H17 V10 H15 V29 H5 L4 7 Z"/>',
+  shoe: '<path d="M3 19 Q3 12 8 12 L12 16 Q18 18.5 25 19.5 Q29 20.5 29 24 V27 H3 Z"/>',
+  bag: '<path d="M6 12 H26 L28 29 H4 Z M10 12 Q10 4 16 4 Q22 4 22 12 H19.5 Q19.5 6.5 16 6.5 Q12.5 6.5 12.5 12 Z"/>',
+};
+const ICON = {
+  shop: '<path d="M12 8a2.2 2.2 0 1 0-2.2-2.2M12 8v1.5L3 16.5h18L12 9.5"/>',
+  bag: '<path d="M5 8h14l-1 12H6zM9 8a3 3 0 0 1 6 0"/>',
+  trade: '<path d="M3 7.5 12 3.5l9 4v9l-9 4-9-4zM3 7.5l9 4 9-4M12 11.5v9"/>',
+  wallet: '<path d="M3 7h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H3zM3 7l12-3v3M16 13h2"/>',
+  account: '<path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0"/>',
+  staff: '<path d="M3 21V9l9-5 9 5v12M7 21v-7h10v7M7 17.5h10"/>',
+};
+function tile(item, extra = '') {
+  const photo = item.photo || (item.photos && item.photos[0]);
+  return `<div class="tile ${swatch(item.id)}">${photo ? `<img src="${photo}" alt="">` : `<svg viewBox="0 0 32 32" aria-hidden="true">${ART[CATS[item.cat].art]}</svg>`}${extra}</div>`;
+}
+
+// ===== STATE =====
+function load() { try { const s = localStorage.getItem(KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(S)); return true; }
+  catch (e) { toast('This browser blocked saving, so changes will reset when you close the page.'); return false; }
+}
+function seedInventory() {
+  const rows = [
+    ['provo', 'Wide-leg high-rise jeans', 'Levi\'s', 'premium', 'jeans', '28', 'likenew', 'hot'],
+    ['provo', 'Oversized crewneck sweatshirt', 'Aerie', 'mall', 'sweater', 'M', 'good', 'current'],
+    ['provo', 'Align leggings 25"', 'Lululemon', 'premium', 'active', '6', 'likenew', 'hot'],
+    ['provo', 'Floral midi dress', 'Madewell', 'premium', 'dress', 'S', 'good', 'current'],
+    ['provo', 'Sherpa fleece pullover', 'Patagonia', 'premium', 'jacket', 'L', 'good', 'hot'],
+    ['provo', 'Ribbed baby tee', 'Brandy Melville', 'mall', 'tee', 'One size', 'likenew', 'hot'],
+    ['provo', 'Air Force 1 \'07', 'Nike', 'premium', 'sneakers', '8.5', 'good', 'current'],
+    ['provo', 'Linen button-up shirt', 'J.Crew', 'mall', 'top', 'M', 'nwt', 'classic'],
+    ['provo', 'Pleated tennis skirt', 'H&M', 'budget', 'skirt', 'S', 'likenew', 'current'],
+    ['provo', 'Wool-blend topcoat', 'Banana Republic', 'mall', 'coat', 'M', 'good', 'classic'],
+    ['provo', 'Leather crossbody', 'Coach', 'designer', 'bag', 'One size', 'good', 'current'],
+    ['provo', 'Relaxed cargo pants', 'Abercrombie', 'mall', 'pants', '30', 'likenew', 'hot'],
+    ['slc', 'Nuptse puffer jacket', 'The North Face', 'premium', 'jacket', 'M', 'good', 'hot'],
+    ['slc', 'Straight-leg jeans', 'Agolde', 'designer', 'jeans', '27', 'good', 'current'],
+    ['slc', 'Chunky knit cardigan', 'Free People', 'premium', 'sweater', 'S', 'likenew', 'current'],
+    ['slc', '1460 Chelsea boots', 'Dr. Martens', 'premium', 'shoes', '9', 'good', 'classic'],
+    ['stg', 'Linen pull-on shorts', 'Old Navy', 'budget', 'shorts', 'M', 'likenew', 'current'],
+    ['stg', 'Silk slip dress', 'Reformation', 'designer', 'dress', '4', 'likenew', 'hot'],
+    ['stg', 'Dri-FIT running shorts', 'Nike', 'premium', 'active', 'S', 'good', 'current'],
+  ];
+  return rows.map((r, i) => {
+    const [location, title, brand, tier, cat, size, cond, trend] = r;
+    const v = valuate(cat, tier, cond, trend);
+    return { id: 'RR-' + (1001 + i), location, title, brand, tier, cat, size, cond, trend, paid: v.payout, price: v.price, photo: null, status: 'available', listed: daysAgo(i % 9) };
+  });
+}
+function freshState() {
+  return { user: null, location: 'provo', inventory: seedInventory(), tradeIns: [], cart: { location: null, ids: [] }, orders: [], ledger: [], staff: false, ui: { tab: 'shop', group: 'all', q: '', signup: false, staffTab: 'review' } };
+}
+function mkItem(cat, brand, tier, size, cond, trend, status, reason) {
+  const it = { id: uid('IT'), photos: [], cat, brand, tier, size, cond, note: '', trend, status, reason: reason || null, payout: null };
+  if (trend && status !== 'denied') it.payout = valuate(cat, tier, cond, trend).payout;
+  return it;
+}
+function demoState() {
+  const s = freshState();
+  s.user = { name: 'Demo Member', email: 'demo@example.com', street: '800 N 400 E', city: 'Provo', zip: '84604', home: 'provo', credit: 24, card: { last4: '4242' },
+    membership: { status: 'active', since: daysAgo(40), renews: daysAhead(20), lastCharge: daysAgo(10) }, demo: true };
+  s.ledger = [{ date: daysAgo(12), amt: 24, note: 'Trade-in TI-2041 · 3 items accepted' }];
+  s.tradeIns = [
+    { id: 'TI-2058', created: daysAgo(1), status: 'offer', method: null, items: [
+      mkItem('jacket', 'Carhartt', 'premium', 'L', 'good', 'hot', 'offered'),
+      mkItem('tee', 'Shein', 'budget', 'M', 'good', 'dated', 'denied', DENY_REASONS[0]),
+      mkItem('jeans', 'American Eagle', 'mall', '30', 'likenew', 'current', 'offered')] },
+    { id: 'TI-2063', created: daysAgo(0), status: 'review', method: null, items: [
+      mkItem('dress', 'Free People', 'premium', 'S', 'likenew', null, 'pending'),
+      mkItem('sneakers', 'New Balance', 'premium', '7.5', 'good', null, 'pending')] },
+  ];
+  return s;
+}
+let S = load() || freshState();
+S.ui = Object.assign({ tab: 'shop', group: 'all', q: '', signup: false, staffTab: 'review' }, S.ui);
+let sheet = null;          // { type, ... } — not persisted
+let pendingPhotos = [];    // photos for the trade-in item being added
+let draftBox = [];         // items added to the trade-in box but not yet submitted
+let confirming = null;     // inline confirmation key
+
+const isMember = () => S.user && S.user.membership.status === 'active';
+const isHome = () => S.user && S.location === S.user.home;
+const loc = () => LOCATIONS[S.location];
+
+// ===== RENDER =====
+function render() {
+  document.getElementById('app').innerHTML = S.user ? shell() : onboarding();
+  renderSheet();
+}
+function renderSheet() {
+  const el = document.getElementById('sheet');
+  if (!sheet) { el.innerHTML = ''; return; }
+  const body = { item: itemSheet, locations: locationsSheet, order: orderSheet }[sheet.type]();
+  el.innerHTML = `<div class="scrim" data-act="closeSheet"><div class="sheet" role="dialog" aria-modal="true">${body}</div></div>`;
+}
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.hidden = false;
+  clearTimeout(toast.t); toast.t = setTimeout(() => { t.hidden = true; }, 3200);
+}
+
+// ----- Onboarding -----
+function onboarding() {
+  const ex = valuate('jeans', 'premium', 'likenew', 'hot');
+  return `<div class="app stack">
+    <div class="top"><div class="brand">Re<span>Rack</span></div><span class="chip-btn"><span class="dot"></span>Orem – Provo</span></div>
+    <section class="hero">
+      <p class="eyebrow">Clothing swap · Utah County</p>
+      <h1>Trade in your closet. <em>Shop</em> everyone else's.</h1>
+      <p class="muted">Snap photos of clothes you're done with, get a real estimate, then ship or drop them at our Provo warehouse. Spend the credit on pieces other members traded in.</p>
+    </section>
+    <div class="panel stack">
+      <p class="eyebrow">What a pair of Levi's like-new trending jeans gets you</p>
+      <div class="compare">
+        <div class="them"><span class="small muted">Typical buy-back store</span><span class="num">${money(ex.typical)}</span><span class="small muted">about 30% of resale</span></div>
+        <div class="us"><span class="small">ReRack credit</span><span class="num">${money(ex.payout)}</span><span class="small">resale price minus ${money(ex.markup)}</span></div>
+      </div>
+      <p class="small muted">Everything on our racks is priced at fair resale value, never more than a few dollars above what we paid the person who traded it in.</p>
+    </div>
+    <ol class="steps"><li>Photograph what you're trading</li><li>Get an estimate from our team</li><li>Ship the box or drop it off</li><li>Shop with your credit</li></ol>
+    ${S.ui.signup ? signupForm() : `<div class="stack">
+      <button class="btn block" data-act="showSignup">Become a member · ${money(MEMBERSHIP_PRICE)}/mo</button>
+      <button class="btn ghost block" data-act="demo">Explore with a demo account</button>
+      <p class="small muted" style="text-align:center">Memberships are open to Orem and Provo addresses.</p></div>`}
+  </div>`;
+}
+function signupForm() {
+  return `<form id="signupForm" class="panel stack" novalidate>
+    <h2 class="section-title">Create your membership</h2>
+    <div class="field"><label for="suName">Full name</label><input id="suName" autocomplete="name" required></div>
+    <div class="field"><label for="suEmail">Email</label><input id="suEmail" type="email" autocomplete="email" required></div>
+    <div class="field"><label for="suStreet">Street address</label><input id="suStreet" autocomplete="address-line1" required></div>
+    <div class="grid2">
+      <div class="field"><label for="suCity">City</label><input id="suCity" autocomplete="address-level2" required></div>
+      <div class="field"><label for="suZip">ZIP</label><input id="suZip" inputmode="numeric" maxlength="5" autocomplete="postal-code" required></div>
+    </div>
+    <hr class="stitch">
+    <div class="plan"><div><strong>ReRack Membership</strong><div class="small muted">Trade in, shop, and free shipping from your home warehouse. Cancel anytime.</div></div><span class="tag big">${money(MEMBERSHIP_PRICE)}/mo</span></div>
+    ${cardFields('su')}
+    <p id="suErr" class="err" hidden></p>
+    <button class="btn block" type="submit">Start membership</button>
+    <button class="btn quiet block" type="button" data-act="hideSignup">Back</button>
+  </form>`;
+}
+function cardFields(p) {
+  return `<div class="field"><label for="${p}Card">Credit or debit card</label><input id="${p}Card" inputmode="numeric" autocomplete="cc-number" placeholder="1234 5678 9012 3456"></div>
+    <div class="grid2">
+      <div class="field"><label for="${p}Exp">Expires (MM/YY)</label><input id="${p}Exp" autocomplete="cc-exp" placeholder="08/28"></div>
+      <div class="field"><label for="${p}Cvc">CVC</label><input id="${p}Cvc" inputmode="numeric" autocomplete="cc-csc" placeholder="123"></div>
+    </div>
+    <p class="small muted">Prototype only: no card is actually charged.</p>`;
+}
+function readCard(p) {
+  const num = document.getElementById(p + 'Card').value.replace(/\D/g, '');
+  const exp = document.getElementById(p + 'Exp').value.trim();
+  const cvc = document.getElementById(p + 'Cvc').value.replace(/\D/g, '');
+  if (num.length < 13 || num.length > 19) return { err: 'Enter the full card number.' };
+  const m = exp.match(/^(\d{2})\s*\/\s*(\d{2})$/);
+  if (!m || +m[1] < 1 || +m[1] > 12) return { err: 'Enter the expiration as MM/YY.' };
+  if (new Date(2000 + +m[2], +m[1], 0) < new Date()) return { err: 'That card has expired.' };
+  if (cvc.length < 3) return { err: 'Enter the 3 or 4 digit CVC.' };
+  return { last4: num.slice(-4) };
+}
+
+// ----- App shell -----
+function shell() {
+  const tabs = [['shop', 'Shop'], ['bag', 'Bag'], ['trade', 'Trade in'], ['wallet', 'Credit'], ['account', 'Account']];
+  if (S.staff) tabs.push(['staff', 'Warehouse']);
+  const view = { shop: shopView, bag: bagView, trade: tradeView, wallet: walletView, account: accountView, staff: staffView }[S.ui.tab] || shopView;
+  const bagCount = S.cart.ids.length;
+  return `<div class="app">
+    <header class="top">
+      <div class="brand">Re<span>Rack</span></div>
+      <button class="chip-btn" data-act="openLocations" aria-label="Change shopping location"><span class="dot ${isHome() ? '' : 'travel'}"></span>${esc(loc().short)}</button>
+      <button class="chip-btn credit-pill" data-act="tab" data-tab="wallet" aria-label="Store credit">${money(S.user.credit)}</button>
+    </header>
+    <main class="stack">${view()}</main>
+  </div>
+  <nav class="nav"><div class="nav-inner">${tabs.map(([k, l]) => `<button data-act="tab" data-tab="${k}"${S.ui.tab === k ? ' aria-current="page"' : ''}><svg viewBox="0 0 24 24" aria-hidden="true">${ICON[k]}</svg>${l}${k === 'bag' && bagCount ? `<span class="badge">${bagCount}</span>` : ''}</button>`).join('')}</div></nav>`;
+}
+function memberGate() {
+  return isMember() ? '' : `<div class="notice warn">Your membership is paused. <button class="btn small" data-act="resume">Resume for ${money(MEMBERSHIP_PRICE)}/mo</button> to trade in and check out.</div>`;
+}
+
+// ----- Shop -----
+function shopView() {
+  const l = loc();
+  return `${memberGate()}
+    <div class="notice ${isHome() ? '' : 'thread'}">
+      ${isHome()
+        ? `<strong>${esc(l.name)}</strong> is your home warehouse. Orders ship free to ${esc(S.user.street)}.`
+        : `<strong>Traveling: ${esc(l.name)}.</strong> Your credit works here, but items from this warehouse are <strong>pickup only</strong> at ${esc(l.address)}. <button class="btn small quiet" data-act="setLoc" data-loc="${S.user.home}">Back to ${esc(LOCATIONS[S.user.home].short)}</button>`}
+    </div>
+    <div class="field"><label for="q" class="eyebrow">Search ${esc(l.short)} racks</label><input id="q" type="search" placeholder="Brand, item, or size" value="${esc(S.ui.q)}"></div>
+    <div class="chips" role="group" aria-label="Category">${Object.entries(GROUPS).map(([k, v]) => `<button data-act="group" data-group="${k}" aria-pressed="${S.ui.group === k}">${v}</button>`).join('')}</div>
+    <div id="grid">${gridHTML()}</div>`;
+}
+function gridHTML() {
+  const q = S.ui.q.trim().toLowerCase();
+  const items = S.inventory.filter(i => i.status === 'available' && i.location === S.location
+    && (S.ui.group === 'all' || CATS[i.cat].group === S.ui.group)
+    && (!q || [i.title, i.brand, i.size, CATS[i.cat].label].join(' ').toLowerCase().includes(q)))
+    .sort((a, b) => b.listed.localeCompare(a.listed));
+  if (!items.length) return `<div class="notice">Nothing matches on the ${esc(loc().short)} racks right now. New trade-ins are posted every day.</div>`;
+  return `<p class="small muted">${items.length} item${items.length === 1 ? '' : 's'} at ${esc(loc().name)}</p><div class="grid">${items.map(card).join('')}</div>`;
+}
+function card(i) {
+  const inBag = S.cart.ids.includes(i.id);
+  return `<button class="card" data-act="openItem" data-id="${i.id}">
+    ${tile(i, inBag ? '<span class="pill ok in-bag">In bag</span>' : '')}
+    <div class="card-body">
+      <span class="small muted">${esc(i.brand)} · ${esc(i.size)}</span>
+      <span class="card-title">${esc(i.title)}</span>
+      <div class="row spread"><span class="tag">${money(i.price)}</span>${i.trend === 'hot' ? '<span class="pill hot">Trending</span>' : ''}</div>
+    </div></button>`;
+}
+function itemSheet() {
+  const i = S.inventory.find(x => x.id === sheet.id);
+  if (!i) return '';
+  const inBag = S.cart.ids.includes(i.id);
+  const l = LOCATIONS[i.location];
+  return `<button class="close" data-act="closeSheet" aria-label="Close">✕</button>
+    <div class="stack">
+      ${tile(i)}
+      <div class="stack" style="gap:6px">
+        <span class="small muted">${esc(i.brand)} · ${esc(CATS[i.cat].label)} · Size ${esc(i.size)}</span>
+        <h2 class="display" style="font-size:22px">${esc(i.title)}</h2>
+        <div class="row"><span class="pill">${CONDS[i.cond].label}</span><span class="pill ${i.trend === 'hot' ? 'hot' : ''}">${TRENDS[i.trend].label}</span><span class="small muted mono">${i.id}</span></div>
+      </div>
+      <div class="panel stack" style="gap:8px">
+        <p class="eyebrow">How we priced it</p>
+        <dl class="sum">
+          <dt>Credit paid to the member who traded it</dt><dd>${money(i.paid)}</dd>
+          <dt>ReRack markup</dt><dd>+${money(i.price - i.paid)}</dd>
+          <dt class="total">Your price</dt><dd class="total">${money(i.price)}</dd>
+        </dl>
+      </div>
+      <p class="small">${i.location === S.user.home ? `Ships free to your address from ${esc(l.name)}.` : `Pickup only at ${esc(l.name)}, ${esc(l.address)} (${esc(l.hours)}). Travel-store items can't be shipped.`}</p>
+      ${inBag ? `<button class="btn ghost block" data-act="removeFromBag" data-id="${i.id}">Remove from bag</button>`
+        : `<button class="btn block" data-act="addToBag" data-id="${i.id}">Add to bag · ${money(i.price)}</button>`}
+    </div>`;
+}
+
+// ----- Bag & checkout -----
+function bagItems() { return S.cart.ids.map(id => S.inventory.find(i => i.id === id)).filter(i => i && i.status === 'available'); }
+function bagView() {
+  const items = bagItems();
+  if (!items.length) return `<h1 class="display" style="font-size:22px">Your bag</h1><div class="notice">Your bag is empty. <button class="btn small" data-act="tab" data-tab="shop">Browse the ${esc(loc().short)} racks</button></div>`;
+  const bagLoc = LOCATIONS[S.cart.location];
+  const ship = S.cart.location === S.user.home;
+  const subtotal = items.reduce((a, i) => a + i.price, 0);
+  const useCredit = S.ui.useCredit !== false;
+  const creditUsed = useCredit ? Math.min(S.user.credit, subtotal) : 0;
+  const charge = Math.round((subtotal - creditUsed) * 100) / 100;
+  return `<h1 class="display" style="font-size:22px">Your bag</h1>
+    ${memberGate()}
+    <div class="panel"><div class="list">${items.map(i => `<div class="li"><div class="thumb">${tile(i)}</div>
+      <div class="grow"><div class="card-title">${esc(i.title)}</div><div class="small muted">${esc(i.brand)} · ${esc(i.size)}</div></div>
+      <div class="stack" style="gap:4px;align-items:flex-end"><span class="tag">${money(i.price)}</span><button class="btn small quiet" data-act="removeFromBag" data-id="${i.id}">Remove</button></div></div>`).join('')}</div></div>
+    <div class="panel stack">
+      <p class="eyebrow">${ship ? 'Shipping' : 'In-store pickup'}</p>
+      ${ship ? `<p>Free shipping to <strong>${esc(S.user.street)}, ${esc(S.user.city)} ${esc(S.user.zip)}</strong> from ${esc(bagLoc.name)}.</p>`
+        : `<p>Pick up at <strong>${esc(bagLoc.name)}</strong>, ${esc(bagLoc.address)}. ${esc(bagLoc.hours)}.</p><p class="small muted">This isn't your home warehouse, so these items can't be shipped.</p>`}
+    </div>
+    <div class="panel stack">
+      <label class="switch"><input type="checkbox" id="useCredit" ${useCredit ? 'checked' : ''} ${S.user.credit <= 0 ? 'disabled' : ''}> Use my store credit (${money(S.user.credit)} available)</label>
+      <dl class="sum">
+        <dt>Subtotal</dt><dd>${money(subtotal)}</dd>
+        <dt>${ship ? 'Shipping' : 'Pickup'}</dt><dd>Free</dd>
+        <dt>Store credit</dt><dd>−${money(creditUsed)}</dd>
+        <dt class="total">${charge > 0 ? `Card ••${esc(S.user.card.last4)}` : 'Due'}</dt><dd class="total">${money(charge)}</dd>
+      </dl>
+      ${charge > 0 && creditUsed > 0 ? `<p class="small muted">Your credit covers ${money(creditUsed)}. The remaining ${money(charge)} goes on your card.</p>` : ''}
+      <button class="btn block" data-act="checkout" ${isMember() ? '' : 'disabled'}>Place order${charge > 0 ? ` · charge ${money(charge)}` : ''}</button>
+    </div>`;
+}
+function orderSheet() {
+  const o = S.orders.find(x => x.id === sheet.id);
+  const l = LOCATIONS[o.location];
+  return `<button class="close" data-act="closeSheet" aria-label="Close">✕</button>
+    <div class="stack">
+      <p class="eyebrow">Order ${o.id}</p>
+      <h2 class="display" style="font-size:22px">${o.fulfillment === 'ship' ? 'Order placed. We\'re packing it.' : 'Order placed. Pick it up in store.'}</h2>
+      ${o.fulfillment === 'ship' ? `<p>It ships from ${esc(l.name)} to ${esc(o.address)}, usually within 2 business days.</p>`
+        : `<div class="ticket"><span class="eyebrow">Pickup code</span><span class="code">${o.code}</span><span class="small">${esc(l.name)} · ${esc(l.address)}</span><span class="small muted">${esc(l.hours)}. Ready in 1–2 days, held for 7 days.</span></div>`}
+      <dl class="sum"><dt>Items</dt><dd>${o.items.length}</dd><dt>Paid with credit</dt><dd>${money(o.creditUsed)}</dd><dt>Charged to card</dt><dd>${money(o.charge)}</dd></dl>
+      <button class="btn block" data-act="closeSheet">Done</button>
+    </div>`;
+}
+
+// ----- Locations -----
+function locationsSheet() {
+  return `<button class="close" data-act="closeSheet" aria-label="Close">✕</button>
+    <div class="stack">
+      <h2 class="display" style="font-size:20px">Shop a warehouse</h2>
+      <p class="small muted">Your credit works everywhere. Only your home warehouse ships to you; other warehouses are pickup in person.</p>
+      ${locationButtons()}
+      ${S.cart.ids.length && sheet.pending ? `<div class="notice warn stack" style="gap:8px">Your bag has items from ${esc(LOCATIONS[S.cart.location].short)}. Switching warehouses empties it.
+        <div class="row"><button class="btn small" data-act="setLoc" data-loc="${sheet.pending}" data-force="1">Empty bag and switch</button><button class="btn small quiet" data-act="cancelSwitch">Keep my bag</button></div></div>` : ''}
+    </div>`;
+}
+function locationButtons() {
+  return Object.values(LOCATIONS).map(l => {
+    const home = l.id === S.user.home;
+    const count = S.inventory.filter(i => i.location === l.id && i.status === 'available').length;
+    return `<button class="loc" data-act="setLoc" data-loc="${l.id}" aria-pressed="${S.location === l.id}">
+      <span class="dot ${home ? '' : 'travel'}" style="margin-top:7px"></span>
+      <span class="grow"><strong>${esc(l.name)}</strong><br><span class="small muted">${esc(l.address)}</span><br>
+      <span class="small">${home ? 'Home · ships to you' : 'Travel · pickup only'} · ${count} items</span></span></button>`;
+  }).join('');
+}
+
+// ----- Trade in -----
+function tradeView() {
+  const active = S.tradeIns.slice().sort((a, b) => b.created.localeCompare(a.created));
+  return `<h1 class="display" style="font-size:22px">Trade in</h1>
+    ${memberGate()}
+    <ol class="steps"><li>Photograph each piece</li><li>We send an estimate</li><li>Ship or drop off the box</li><li>Credit lands after inspection</li></ol>
+    ${isMember() ? boxBuilder() : ''}
+    ${active.length ? `<h2 class="section-title">Your trade-ins</h2>${active.map(tradeCard).join('')}` : ''}`;
+}
+function boxBuilder() {
+  return `<div class="panel stack">
+    <div class="row spread"><h2 class="section-title">Your box</h2><span class="pill">${draftBox.length} item${draftBox.length === 1 ? '' : 's'}</span></div>
+    ${draftBox.length ? `<div class="list">${draftBox.map((it, idx) => `<div class="li"><div class="thumb">${tile(it)}</div>
+      <div class="grow"><div class="card-title">${esc(it.brand)} ${esc(CATS[it.cat].label.toLowerCase())}</div><div class="small muted">Size ${esc(it.size)} · ${CONDS[it.cond].label}</div></div>
+      <button class="btn small quiet" data-act="removeDraft" data-idx="${idx}">Remove</button></div>`).join('')}</div>
+      <button class="btn block" data-act="submitBox">Send ${draftBox.length} item${draftBox.length === 1 ? '' : 's'} for an estimate</button><hr class="stitch">` : ''}
+    <form id="itemForm" class="stack" novalidate>
+      <p class="eyebrow">${draftBox.length ? 'Add another piece' : 'Add your first piece'}</p>
+      <div class="photos" id="photoPreview">${photoPreview()}</div>
+      <div class="field"><label for="tiCat">What is it?</label><select id="tiCat">${opts(CATS, 'jeans')}</select></div>
+      <div class="grid2">
+        <div class="field"><label for="tiBrand">Brand</label><input id="tiBrand" placeholder="e.g. Levi's"></div>
+        <div class="field"><label for="tiSize">Size</label><input id="tiSize" placeholder="e.g. M, 28, 8.5"></div>
+      </div>
+      <div class="field"><label for="tiTier">Brand type</label><select id="tiTier">${opts(TIERS, 'mall')}</select></div>
+      <div class="field"><label for="tiCond">Condition</label><select id="tiCond">${opts(CONDS, 'likenew')}</select></div>
+      <div class="field"><label for="tiNote">Anything we should know? (optional)</label><input id="tiNote" placeholder="Worn twice, small mark on hem"></div>
+      <div id="ballpark">${ballparkHTML('jeans', 'mall', 'likenew')}</div>
+      <p id="tiErr" class="err" hidden></p>
+      <button class="btn ghost block" type="submit">Add to box</button>
+    </form>
+  </div>`;
+}
+function photoPreview() {
+  return pendingPhotos.map((p, i) => `<div class="ph-wrap"><img src="${p}" alt="Photo ${i + 1}"><button type="button" data-act="removePhoto" data-idx="${i}" aria-label="Remove photo">✕</button></div>`).join('')
+    + (pendingPhotos.length < 4 ? `<label class="photo-add">${pendingPhotos.length ? 'Add angle' : 'Take or add photos'}<input id="tiPhotos" type="file" accept="image/*" capture="environment" multiple></label>` : '');
+}
+function ballparkHTML(cat, tier, cond) {
+  const lo = valuate(cat, tier, cond, 'classic'), hi = valuate(cat, tier, cond, 'hot'), mid = valuate(cat, tier, cond, 'current');
+  return `<div class="notice ${cond === 'fair' ? 'warn' : 'thread'}">
+    <strong>Ballpark: ${money(lo.payout)} – ${money(hi.payout)} credit</strong><br>
+    <span class="small">Our team sets the final number from your photos, based on how on-trend it is and its quality. Typical buy-back stores pay about ${money(mid.typical)}.</span>
+    ${cond === 'fair' ? '<br><span class="small">Pieces with visible wear are usually declined.</span>' : ''}</div>`;
+}
+function tradeCard(t) {
+  const offered = t.items.filter(i => i.status === 'offered' || i.status === 'accepted');
+  const total = offered.reduce((a, i) => a + i.payout, 0);
+  const statusPill = { review: ['warn', 'Waiting for estimate'], offer: ['hot', 'Estimate ready'], inbound: ['warn', t.method === 'ship' ? 'Ship your box' : 'Drop off your box'], complete: ['ok', 'Credit issued'], declined: ['', 'Offer declined'], closed: ['bad', 'Not accepted'] }[t.status];
+  const lines = t.items.map(i => `<div class="li"><div class="thumb">${tile(i)}</div>
+    <div class="grow"><div class="card-title">${esc(i.brand)} ${esc(CATS[i.cat].label.toLowerCase())}</div>
+      <div class="small muted">Size ${esc(i.size)} · ${CONDS[i.cond].label}${i.trend ? ' · ' + TRENDS[i.trend].label : ''}</div>
+      ${i.status === 'denied' ? `<div class="small" style="color:var(--bad)">Declined: ${esc(i.reason)}</div>` : ''}</div>
+    ${i.status === 'pending' ? '<span class="pill">Reviewing</span>' : i.status === 'denied' ? '<span class="pill bad">Declined</span>' : `<span class="tag">${money(i.payout)}</span>`}</div>`).join('');
+  const home = LOCATIONS[S.user.home];
+  let action = '';
+  if (t.status === 'review') action = `<p class="small muted">Our team is reviewing your photos. Estimates usually come back within 24 hours.</p>`;
+  if (t.status === 'offer') action = `<dl class="sum"><dt class="total">Estimated credit</dt><dd class="total">${money(total)}</dd></dl>
+    <p class="small muted">Final credit is confirmed when we inspect the box. Anything that doesn't match the photos may be declined.</p>
+    <div class="grid2"><button class="btn" data-act="acceptOffer" data-id="${t.id}" data-method="ship">Accept &amp; ship it</button><button class="btn ghost" data-act="acceptOffer" data-id="${t.id}" data-method="dropoff">Accept &amp; drop off</button></div>
+    <button class="btn quiet small" data-act="declineOffer" data-id="${t.id}">No thanks</button>`;
+  if (t.status === 'inbound' && t.method === 'ship') action = `<div class="ticket"><span class="eyebrow">Prepaid shipping label</span>
+      <span><strong>To:</strong> ReRack ${esc(home.name)}, ${esc(home.address)}</span>
+      <span><strong>From:</strong> ${esc(S.user.name)}, ${esc(S.user.street)}, ${esc(S.user.city)} ${esc(S.user.zip)}</span>
+      <span class="mono small">Tracking ${esc(t.tracking)}</span></div>
+    <p class="small">Pack only the ${offered.length} accepted item${offered.length === 1 ? '' : 's'} and write <strong class="mono">${t.id}</strong> inside the box. The label was emailed to ${esc(S.user.email)}.</p>
+    ${t.shipped ? `<span class="pill ok">Marked shipped ${fmtDate(t.shipped)}</span>` : `<button class="btn small ghost" data-act="markShipped" data-id="${t.id}">I've shipped it</button>`}`;
+  if (t.status === 'inbound' && t.method === 'dropoff') action = `<div class="ticket"><span class="eyebrow">Drop-off code</span><span class="code">${esc(t.dropCode)}</span>
+      <span class="small">${esc(home.name)} · ${esc(home.address)}</span><span class="small muted">${esc(home.hours)}</span></div>
+    <p class="small">Bring the ${offered.length} accepted item${offered.length === 1 ? '' : 's'} in a box or bag and show this code at the counter.</p>`;
+  if (t.status === 'complete') {
+    const earned = t.items.filter(i => i.status === 'accepted').reduce((a, i) => a + i.payout, 0);
+    action = `<div class="notice ok"><strong>${money(earned)} added to your credit.</strong> Accepted pieces are now on the ${esc(home.short)} racks.</div>
+      ${t.items.some(i => i.status === 'denied' && i.inspected) ? '<p class="small muted">Pieces declined at inspection are held at the warehouse for 30 days for pickup, then donated.</p>' : ''}`;
+  }
+  if (t.status === 'closed') action = `<p class="small muted">None of these pieces fit what's selling right now. Nothing to send in.</p>`;
+  return `<div class="panel stack">
+    <div class="row spread"><span><strong class="mono">${t.id}</strong> <span class="small muted">· ${fmtDate(t.created)}</span></span><span class="pill ${statusPill[0]}">${statusPill[1]}</span></div>
+    <div class="list">${lines}</div>${action}</div>`;
+}
+
+// ----- Wallet -----
+function walletView() {
+  return `<h1 class="display" style="font-size:22px">Credit</h1>
+    <div class="credit-hero"><span class="eyebrow" style="color:inherit">Store credit</span><span class="num">${money(S.user.credit)}</span>
+      <span class="small">Spend it at any ReRack warehouse. If an order costs more, the difference goes on your card.</span></div>
+    <div class="panel stack"><h2 class="section-title">History</h2>
+      ${S.ledger.length ? `<div class="list">${S.ledger.slice().reverse().map(e => `<div class="li"><div class="grow"><div>${esc(e.note)}</div><div class="small muted">${fmtDate(e.date)}</div></div>
+        <span class="mono" style="color:${e.amt >= 0 ? 'var(--ok)' : 'var(--ink)'}">${e.amt >= 0 ? '+' : '−'}${money(Math.abs(e.amt))}</span></div>`).join('')}</div>`
+        : '<p class="muted small">No credit yet. Send in your first box from the Trade in tab.</p>'}
+    </div>
+    <div class="panel stack"><h2 class="section-title">Orders</h2>
+      ${S.orders.length ? `<div class="list">${S.orders.slice().reverse().map(o => `<button class="li" style="background:none;border-left:0;border-right:0;border-top:0;text-align:left;cursor:pointer;width:100%" data-act="openOrder" data-id="${o.id}">
+        <div class="grow"><div><strong class="mono">${o.id}</strong> · ${o.items.length} item${o.items.length === 1 ? '' : 's'}</div>
+        <div class="small muted">${fmtDate(o.date)} · ${o.fulfillment === 'ship' ? 'Shipping' : 'Pickup at ' + esc(LOCATIONS[o.location].short) + ' · code ' + o.code}</div></div>
+        <span class="mono">${money(o.creditUsed + o.charge)}</span></button>`).join('')}</div>`
+        : '<p class="muted small">No orders yet.</p>'}
+    </div>`;
+}
+
+// ----- Account -----
+function accountView() {
+  const m = S.user.membership;
+  const home = LOCATIONS[S.user.home];
+  return `<h1 class="display" style="font-size:22px">Account</h1>
+    <div class="panel stack" style="gap:6px"><strong>${esc(S.user.name)}</strong><span class="small muted">${esc(S.user.email)}</span>
+      <span class="small">${esc(S.user.street)}, ${esc(S.user.city)} ${esc(S.user.zip)}</span>
+      <span class="small">Home warehouse: <strong>${esc(home.name)}</strong> (${esc(home.area)})</span></div>
+    <div class="panel stack">
+      <div class="row spread"><h2 class="section-title">Membership</h2><span class="pill ${m.status === 'active' ? 'ok' : 'warn'}">${m.status === 'active' ? 'Active' : 'Paused'}</span></div>
+      <dl class="sum"><dt>Plan</dt><dd>${money(MEMBERSHIP_PRICE)}/mo</dd><dt>Member since</dt><dd>${fmtDate(m.since)}</dd>
+        ${m.status === 'active' ? `<dt>Next charge</dt><dd>${fmtDate(m.renews)}</dd>` : ''}<dt>Card</dt><dd>••${esc(S.user.card.last4)}</dd></dl>
+      ${m.status === 'active'
+        ? (confirming === 'cancel' ? `<div class="notice warn stack" style="gap:8px">Pause your membership? You'll keep your credit, but can't trade in or check out until you resume.<div class="row"><button class="btn small danger" data-act="cancelMembership">Pause membership</button><button class="btn small quiet" data-act="unconfirm">Keep it</button></div></div>`
+          : `<button class="btn quiet small" data-act="confirm" data-key="cancel">Pause membership</button>`)
+        : `<button class="btn small" data-act="resume">Resume for ${money(MEMBERSHIP_PRICE)}/mo</button>`}
+    </div>
+    <div class="stack"><h2 class="section-title">Shopping location</h2><p class="small muted">Traveling? Switch warehouses to shop their racks with your credit. Pickup only outside your home warehouse.</p>${locationButtons()}</div>
+    <div class="panel stack">
+      <label class="switch"><input type="checkbox" id="staffToggle" ${S.staff ? 'checked' : ''}> Warehouse staff mode</label>
+      <p class="small muted">Shows the Warehouse tab, where staff write estimates, inspect boxes, and post accepted pieces. Use it to try both sides of a trade-in in this prototype.</p>
+    </div>
+    ${confirming === 'reset' ? `<div class="notice bad stack" style="gap:8px">Sign out and erase everything saved on this device?<div class="row"><button class="btn small danger" data-act="reset">Erase and sign out</button><button class="btn small quiet" data-act="unconfirm">Cancel</button></div></div>`
+      : `<button class="btn danger block" data-act="confirm" data-key="reset">Sign out and reset</button>`}`;
+}
+
+// ----- Warehouse (staff) -----
+function staffView() {
+  const review = S.tradeIns.filter(t => t.status === 'review');
+  const inbound = S.tradeIns.filter(t => t.status === 'inbound');
+  const listed = S.inventory.filter(i => i.fromTrade).slice(-8).reverse();
+  const tab = S.ui.staffTab;
+  return `<h1 class="display" style="font-size:22px">Warehouse · ${esc(LOCATIONS[S.user.home].short)}</h1>
+    <div class="chips" role="group" aria-label="Queue">
+      <button data-act="staffTab" data-st="review" aria-pressed="${tab === 'review'}">Needs estimate (${review.length})</button>
+      <button data-act="staffTab" data-st="inbound" aria-pressed="${tab === 'inbound'}">Arriving (${inbound.length})</button>
+      <button data-act="staffTab" data-st="listed" aria-pressed="${tab === 'listed'}">Posted from trade-ins</button>
+    </div>
+    ${tab === 'review' ? (review.length ? review.map(staffReview).join('') : '<div class="notice">No trade-ins waiting for an estimate.</div>') : ''}
+    ${tab === 'inbound' ? (inbound.length ? inbound.map(staffInbound).join('') : '<div class="notice">No boxes on the way.</div>') : ''}
+    ${tab === 'listed' ? (listed.length ? `<div class="grid">${listed.map(card).join('')}</div>` : '<div class="notice">Pieces you accept at inspection are posted here and on the shop automatically.</div>') : ''}`;
+}
+function staffReview(t) {
+  return `<div class="panel stack" data-staff="${t.id}">
+    <div class="row spread"><strong class="mono">${t.id}</strong><span class="small muted">${esc(S.user.name)} · ${fmtDate(t.created)}</span></div>
+    ${t.items.map((i, idx) => {
+      const trend = 'current', flag = suggestDenial(i.cond, trend);
+      return `<div class="stack" style="gap:8px;border-top:1px solid var(--line);padding-top:12px">
+        <div class="row" style="align-items:flex-start;flex-wrap:nowrap"><div class="thumb">${tile(i)}</div>
+          <div class="grow" style="min-width:0"><div class="card-title">${esc(i.brand)} ${esc(CATS[i.cat].label.toLowerCase())}</div>
+          <div class="small muted">Size ${esc(i.size)} · ${TIERS[i.tier].label.split(' (')[0]} brand${i.note ? ' · “' + esc(i.note) + '”' : ''}</div>
+          ${i.photos.length > 1 ? `<div class="photos" style="margin-top:6px">${i.photos.slice(1).map(p => `<img src="${p}" alt="" style="width:40px;height:48px">`).join('')}</div>` : ''}</div></div>
+        <div class="grid2">
+          <div class="field"><label for="tr-${t.id}-${idx}">Trend</label><select id="tr-${t.id}-${idx}" data-recalc>${opts(TRENDS, trend)}</select></div>
+          <div class="field"><label for="co-${t.id}-${idx}">Condition</label><select id="co-${t.id}-${idx}" data-recalc>${opts(CONDS, i.cond)}</select></div>
+        </div>
+        <div class="field"><label for="dn-${t.id}-${idx}">Decision</label><select id="dn-${t.id}-${idx}" data-recalc><option value="">Make an offer</option>${DENY_REASONS.map(r => `<option${r === flag ? ' selected' : ''}>Decline: ${esc(r)}</option>`).join('')}</select></div>
+        <div id="pv-${t.id}-${idx}">${staffPreview(i, trend, i.cond, flag)}</div>
+      </div>`;
+    }).join('')}
+    <button class="btn block" data-act="sendEstimate" data-id="${t.id}">Send estimate to member</button>
+  </div>`;
+}
+function staffPreview(i, trend, cond, denied) {
+  if (denied) return `<span class="pill bad">Declining</span>`;
+  const v = valuate(i.cat, i.tier, cond, trend);
+  return `<span class="small">Offer <strong class="mono">${money(v.payout)}</strong> credit · posts at <span class="tag">${money(v.price)}</span></span>`;
+}
+function staffInbound(t) {
+  return `<div class="panel stack">
+    <div class="row spread"><strong class="mono">${t.id}</strong><span class="pill">${t.method === 'ship' ? (t.shipped ? 'Shipped ' + fmtDate(t.shipped) : 'Label sent') : 'Drop-off · ' + esc(t.dropCode)}</span></div>
+    ${t.items.filter(i => i.status === 'offered').map(i => {
+      const idx = t.items.indexOf(i);
+      return `<div class="li"><div class="thumb">${tile(i)}</div><div class="grow"><div class="card-title">${esc(i.brand)} ${esc(CATS[i.cat].label.toLowerCase())}</div>
+        <div class="small muted">Offered ${money(i.payout)}</div>
+        <select id="in-${t.id}-${idx}" aria-label="Inspection result" style="margin-top:6px;width:100%;border:1px solid var(--line);border-radius:8px;padding:6px;background:var(--bg)">
+          <option value="">Accept · pay ${money(i.payout)}</option>${DENY_REASONS.map(r => `<option>Decline: ${esc(r)}</option>`).join('')}</select></div></div>`;
+    }).join('')}
+    <button class="btn block" data-act="finishInspection" data-id="${t.id}">Box received · finish inspection &amp; issue credit</button>
+  </div>`;
+}
+
+// ===== ACTIONS =====
+const ACT = {
+  showSignup() { S.ui.signup = true; render(); },
+  hideSignup() { S.ui.signup = false; render(); },
+  demo() { S = demoState(); save(); render(); toast('Signed in to the demo account.'); },
+  tab(d) { S.ui.tab = d.tab; confirming = null; save(); render(); window.scrollTo(0, 0); },
+  group(d) { S.ui.group = d.group; render(); },
+  openItem(d) { sheet = { type: 'item', id: d.id }; renderSheet(); },
+  openOrder(d) { sheet = { type: 'order', id: d.id }; renderSheet(); },
+  openLocations() { sheet = { type: 'locations' }; renderSheet(); },
+  closeSheet() { sheet = null; renderSheet(); },
+  cancelSwitch() { sheet = { type: 'locations' }; renderSheet(); },
+  setLoc(d) {
+    if (d.loc === S.location && !d.force) { sheet = null; render(); return; }
+    if (S.cart.ids.length && S.cart.location !== d.loc && !d.force) { sheet = { type: 'locations', pending: d.loc }; renderSheet(); return; }
+    if (d.force) S.cart = { location: null, ids: [] };
+    S.location = d.loc; S.ui.q = ''; S.ui.tab = 'shop'; sheet = null; save(); render();
+    toast(d.loc === S.user.home ? `Shopping ${LOCATIONS[d.loc].short}: ships to you.` : `Shopping ${LOCATIONS[d.loc].short}: in-store pickup only.`);
+  },
+  addToBag(d) {
+    if (!S.cart.ids.length) S.cart.location = S.location;
+    S.cart.ids.push(d.id); sheet = null; save(); render(); toast('Added to your bag.');
+  },
+  removeFromBag(d) { S.cart.ids = S.cart.ids.filter(id => id !== d.id); if (!S.cart.ids.length) S.cart.location = null; if (sheet) sheet = null; save(); render(); },
+  checkout() {
+    if (!isMember()) return;
+    const items = bagItems(); if (!items.length) return;
+    const subtotal = items.reduce((a, i) => a + i.price, 0);
+    const creditUsed = S.ui.useCredit !== false ? Math.min(S.user.credit, subtotal) : 0;
+    const charge = Math.round((subtotal - creditUsed) * 100) / 100;
+    const ship = S.cart.location === S.user.home;
+    const o = { id: uid('OR'), date: new Date().toISOString(), location: S.cart.location, items: items.map(i => ({ id: i.id, title: i.title, price: i.price })), subtotal, creditUsed, charge,
+      fulfillment: ship ? 'ship' : 'pickup', address: `${S.user.street}, ${S.user.city} ${S.user.zip}`, code: ship ? null : code() };
+    items.forEach(i => { i.status = 'sold'; });
+    if (creditUsed > 0) { S.user.credit = Math.round((S.user.credit - creditUsed) * 100) / 100; S.ledger.push({ date: o.date, amt: -creditUsed, note: `Order ${o.id}` }); }
+    S.orders.push(o); S.cart = { location: null, ids: [] }; save();
+    sheet = { type: 'order', id: o.id }; S.ui.tab = 'wallet'; render();
+  },
+  removePhoto(d) { pendingPhotos.splice(+d.idx, 1); document.getElementById('photoPreview').innerHTML = photoPreview(); },
+  removeDraft(d) { draftBox.splice(+d.idx, 1); render(); },
+  submitBox() {
+    if (!draftBox.length) return;
+    S.tradeIns.push({ id: 'TI-' + (2000 + Math.floor(Math.random() * 8000)), created: new Date().toISOString(), status: 'review', method: null, items: draftBox });
+    draftBox = []; save(); render(); toast('Sent. Your estimate usually comes back within 24 hours.');
+  },
+  acceptOffer(d) {
+    const t = S.tradeIns.find(x => x.id === d.id);
+    t.status = 'inbound'; t.method = d.method;
+    if (d.method === 'ship') t.tracking = '1Z' + code() + code(); else t.dropCode = code();
+    save(); render();
+  },
+  declineOffer(d) { S.tradeIns.find(x => x.id === d.id).status = 'declined'; save(); render(); },
+  markShipped(d) { S.tradeIns.find(x => x.id === d.id).shipped = new Date().toISOString(); save(); render(); },
+  staffTab(d) { S.ui.staffTab = d.st; render(); },
+  sendEstimate(d) {
+    const t = S.tradeIns.find(x => x.id === d.id);
+    t.items.forEach((i, idx) => {
+      i.trend = document.getElementById(`tr-${t.id}-${idx}`).value;
+      i.cond = document.getElementById(`co-${t.id}-${idx}`).value;
+      const dn = document.getElementById(`dn-${t.id}-${idx}`).value;
+      if (dn) { i.status = 'denied'; i.reason = dn.replace(/^Decline: /, ''); i.payout = null; }
+      else { i.status = 'offered'; i.payout = valuate(i.cat, i.tier, i.cond, i.trend).payout; }
+    });
+    t.status = t.items.some(i => i.status === 'offered') ? 'offer' : 'closed';
+    save(); render(); toast(`Estimate sent for ${t.id}.`);
+  },
+  finishInspection(d) {
+    const t = S.tradeIns.find(x => x.id === d.id);
+    let earned = 0, n = 0;
+    t.items.forEach((i, idx) => {
+      if (i.status !== 'offered') return;
+      const dn = document.getElementById(`in-${t.id}-${idx}`).value;
+      if (dn) { i.status = 'denied'; i.reason = dn.replace(/^Decline: /, ''); i.inspected = true; return; }
+      i.status = 'accepted'; earned += i.payout; n++;
+      const v = valuate(i.cat, i.tier, i.cond, i.trend);
+      S.inventory.push({ id: 'RR-' + (1100 + S.inventory.length), location: S.user.home, title: `${i.brand} ${CATS[i.cat].label.toLowerCase()}`, brand: i.brand, tier: i.tier, cat: i.cat, size: i.size,
+        cond: i.cond, trend: i.trend, paid: i.payout, price: i.payout + v.markup, photo: i.photos[0] || null, status: 'available', listed: new Date().toISOString(), fromTrade: t.id });
+    });
+    t.status = 'complete';
+    if (earned) { S.user.credit += earned; S.ledger.push({ date: new Date().toISOString(), amt: earned, note: `Trade-in ${t.id} · ${n} item${n === 1 ? '' : 's'} accepted` }); }
+    save(); render(); toast(`${money(earned)} credit issued for ${t.id}.`);
+  },
+  confirm(d) { confirming = d.key; render(); },
+  unconfirm() { confirming = null; render(); },
+  cancelMembership() { S.user.membership.status = 'paused'; confirming = null; save(); render(); toast('Membership paused. Your credit is safe.'); },
+  resume() { const m = S.user.membership; m.status = 'active'; m.lastCharge = new Date().toISOString(); m.renews = daysAhead(30); save(); render(); toast(`Membership resumed. ${money(MEMBERSHIP_PRICE)} charged to ••${S.user.card.last4}.`); },
+  reset() { try { localStorage.removeItem(KEY); } catch (e) {} S = freshState(); confirming = null; sheet = null; draftBox = []; pendingPhotos = []; render(); },
+};
+
+document.addEventListener('click', e => {
+  const a = e.target.closest('[data-act]');
+  if (!a) return;
+  // The scrim only closes the sheet when the click lands on the scrim itself.
+  if (a.classList.contains('scrim') && e.target !== a) return;
+  ACT[a.dataset.act](a.dataset, e);
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && sheet) { sheet = null; renderSheet(); } });
+
+document.addEventListener('input', e => {
+  if (e.target.id === 'q') { S.ui.q = e.target.value; document.getElementById('grid').innerHTML = gridHTML(); }
+});
+document.addEventListener('change', async e => {
+  const t = e.target;
+  if (t.id === 'useCredit') { S.ui.useCredit = t.checked; save(); render(); }
+  if (t.id === 'staffToggle') { S.staff = t.checked; if (!S.staff && S.ui.tab === 'staff') S.ui.tab = 'account'; save(); render(); if (S.staff) toast('Warehouse tab added to the menu.'); }
+  if (['tiCat', 'tiTier', 'tiCond'].includes(t.id)) {
+    document.getElementById('ballpark').innerHTML = ballparkHTML(document.getElementById('tiCat').value, document.getElementById('tiTier').value, document.getElementById('tiCond').value);
+  }
+  if (t.hasAttribute('data-recalc')) {
+    const [, tid, idx] = t.id.match(/^\w+-(.+)-(\d+)$/);
+    const tr = S.tradeIns.find(x => x.id === tid), item = tr.items[+idx];
+    const trend = document.getElementById(`tr-${tid}-${idx}`).value, cond = document.getElementById(`co-${tid}-${idx}`).value;
+    document.getElementById(`pv-${tid}-${idx}`).innerHTML = staffPreview(item, trend, cond, document.getElementById(`dn-${tid}-${idx}`).value);
+  }
+  if (t.id === 'tiPhotos' && t.files.length) {
+    const files = [...t.files].slice(0, 4 - pendingPhotos.length);
+    for (const f of files) { try { pendingPhotos.push(await shrink(f)); } catch (err) { toast('That file isn\'t an image we can read.'); } }
+    document.getElementById('photoPreview').innerHTML = photoPreview();
+  }
+});
+document.addEventListener('submit', e => {
+  e.preventDefault();
+  if (e.target.id === 'signupForm') return signup();
+  if (e.target.id === 'itemForm') return addItem();
+});
+
+function signup() {
+  const v = id => document.getElementById(id).value.trim();
+  const err = msg => { const el = document.getElementById('suErr'); el.textContent = msg; el.hidden = false; };
+  const name = v('suName'), email = v('suEmail'), street = v('suStreet'), city = v('suCity'), zip = v('suZip');
+  if (!name || !email || !street || !city || !zip) return err('Fill in every field so we know where to ship.');
+  if (!/^\S+@\S+\.\S+$/.test(email)) return err('Enter a valid email address.');
+  if (!/^\d{5}$/.test(zip)) return err('Enter a 5-digit ZIP code.');
+  const home = Object.values(LOCATIONS).find(l => l.zips.includes(zip));
+  if (!home) return err(`ReRack memberships are only open to Orem and Provo addresses right now (ZIPs ${LOCATIONS.provo.zips.join(', ')}). We'll open more areas as new warehouses launch.`);
+  const card = readCard('su');
+  if (card.err) return err(card.err);
+  const now = new Date().toISOString();
+  S.user = { name, email, street, city, zip, home: home.id, credit: 0, card: { last4: card.last4 }, membership: { status: 'active', since: now, renews: daysAhead(30), lastCharge: now } };
+  S.location = home.id; S.ui.signup = false; S.ui.tab = 'trade';
+  save(); render(); toast(`Welcome to ReRack! ${money(MEMBERSHIP_PRICE)} charged to ••${card.last4}.`);
+}
+function addItem() {
+  const v = id => document.getElementById(id).value.trim();
+  const err = msg => { const el = document.getElementById('tiErr'); el.textContent = msg; el.hidden = false; };
+  if (!pendingPhotos.length) return err('Add at least one photo so our team can judge style and condition.');
+  if (!v('tiBrand')) return err('Add the brand (check the tag).');
+  if (!v('tiSize')) return err('Add the size.');
+  draftBox.push({ id: uid('IT'), photos: pendingPhotos.slice(), cat: v('tiCat'), brand: v('tiBrand'), tier: v('tiTier'), size: v('tiSize'), cond: v('tiCond'), note: v('tiNote'), trend: null, status: 'pending', reason: null, payout: null });
+  pendingPhotos = []; render();
+}
+// Downscale photos so a box of trade-ins fits in browser storage.
+function shrink(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const s = Math.min(1, 480 / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        resolve(c.toDataURL('image/jpeg', 0.72));
+      };
+      img.onerror = reject; img.src = r.result;
+    };
+    r.onerror = reject; r.readAsDataURL(file);
+  });
+}
+
+render();
+</script>
