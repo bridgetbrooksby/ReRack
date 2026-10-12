@@ -5,7 +5,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=IBM+Plex+Mono:wght@500&display=swap">
 <style>
-/* Layout: a phone-width app column. Sticky header with location + credit, bottom tab bar,
+/* Layout: a phone-width app column. Sticky header with membership + credit, bottom tab bar,
    every price is a hang tag. Denim blue for actions, marigold "thread" for store credit. */
 :root {
   --bg: #F2F4F8; --surface: #FFFFFF; --ink: #141B2D; --muted: #5A6377; --line: #D7DDE8; --soft: #E7ECF5;
@@ -58,7 +58,7 @@ a { color: var(--denim); }
 .chip-btn { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 12px; font-size: 13px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; }
 .credit-pill { background: var(--thread); color: var(--thread-ink); border-color: transparent; font-family: var(--f-mono); font-weight: 500; }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
-.dot.travel { background: var(--thread); }
+.dot.off { background: var(--muted); }
 
 /* Bottom nav */
 .nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; background: var(--surface); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); }
@@ -164,11 +164,6 @@ hr.stitch { border: 0; border-top: 1.5px dashed var(--line); margin: 4px 0; widt
 .hero { padding-block: 28px 8px; display: flex; flex-direction: column; gap: 14px; }
 .hero h1 { font-family: var(--f-display); font-size: clamp(30px, 8vw, 44px); line-height: 1.02; letter-spacing: -.03em; }
 .hero h1 em { font-style: normal; color: var(--denim); }
-.compare { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.compare > div { border-radius: var(--r); padding: 14px; display: flex; flex-direction: column; gap: 6px; }
-.compare .them { background: var(--soft); }
-.compare .us { background: var(--thread-soft); }
-.compare .num { font-family: var(--f-mono); font-size: 26px; }
 .plan { border: 2px solid var(--denim); border-radius: var(--r); padding: 14px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 
 .credit-hero { background: var(--thread); color: var(--thread-ink); border-radius: var(--r); padding: 18px; display: flex; flex-direction: column; gap: 4px; }
@@ -177,9 +172,12 @@ hr.stitch { border: 0; border-top: 1.5px dashed var(--line); margin: 4px 0; widt
 .toast { position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 8px; z-index: 20; font-size: 14px; max-width: calc(100% - 32px); }
 .switch { display: flex; align-items: center; gap: 10px; cursor: pointer; }
 .switch input { width: 18px; height: 18px; accent-color: var(--denim); }
-.loc { display: flex; gap: 12px; align-items: flex-start; text-align: left; width: 100%; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 12px 14px; cursor: pointer; }
-.loc[aria-pressed="true"] { border: 2px solid var(--denim); padding: 11px 13px; }
-.loc .grow { flex: 1; min-width: 0; }
+.strike { color: var(--muted); font-family: var(--f-mono); font-size: 12px; }
+.filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
+.tbl th { text-align: left; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 700; padding: 0 6px 6px 0; }
+.tbl td { padding: 8px 6px 8px 0; border-top: 1px solid var(--line); vertical-align: top; }
+.tbl .num { text-align: right; white-space: nowrap; }
 </style>
 
 <div id="app"></div>
@@ -188,111 +186,103 @@ hr.stitch { border: 0; border-top: 1.5px dashed var(--line); margin: 4px 0; widt
 
 <script>
 /* ------------------------------------------------------------------
-   ReRack — clothing swap prototype. Everything lives in this file and
-   in the browser's local storage; there is no server yet.
+   ReRack — clothing swap prototype. A clickable stand-in for the Glide
+   app described in SPEC.md. Everything lives in this file and in the
+   browser's local storage; there is no server.
    Business rules are all in the CONFIG block so they're easy to tune.
 ------------------------------------------------------------------- */
 
 // ===== CONFIG =====
 const MEMBERSHIP_PRICE = 6.99;
-// Addresses and hours are placeholders until real warehouses are leased.
-const LOCATIONS = {
-  provo: { id: 'provo', name: 'Provo Warehouse', short: 'Provo', area: 'Orem – Provo',
-    address: '1450 N State St, Provo, UT 84604', hours: 'Mon–Sat 10am–7pm',
-    // Membership is only open to these ZIPs (Provo + Orem). This is the location barrier.
-    zips: ['84601', '84602', '84603', '84604', '84605', '84606', '84057', '84058', '84059', '84097'] },
-  slc: { id: 'slc', name: 'Salt Lake Warehouse', short: 'Salt Lake', area: 'Salt Lake City',
-    address: '850 S 300 W, Salt Lake City, UT 84101', hours: 'Tue–Sat 11am–7pm', zips: [] },
-  stg: { id: 'stg', name: 'St. George Warehouse', short: 'St. George', area: 'St. George',
-    address: '400 E Tabernacle St, St. George, UT 84770', hours: 'Wed–Sat 11am–6pm', zips: [] },
-};
-// base = what a typical item in this category resells for, mall brand, new condition
+const CREDIT_RATE = 0.60;     // credit = 60% of the item's list price, set once at grading
+const AGED_DAYS = 30;         // items listed this many days or more...
+const AGED_DISCOUNT = 0.30;   // ...are this much cheaper for members
+const SCHOOL_DOMAIN = /@([a-z0-9-]+\.)*byu\.edu$/i;  // sign-up is limited to BYU emails
+// PLACEHOLDER: which brands go in each tier, and each tier's price, are still open in the spec.
+const DEFAULT_TIERS = [
+  { id: 't1', name: 'Tier 1', listPrice: 40, brands: ['Lululemon', 'Reformation', 'Free People', 'Madewell', 'Aritzia', 'Patagonia'] },
+  { id: 't2', name: 'Tier 2', listPrice: 25, brands: ['Levi\'s', 'Abercrombie', 'Nike', 'J.Crew', 'Aerie', 'Urban Outfitters'] },
+  { id: 't3', name: 'Tier 3', listPrice: 15, brands: ['American Eagle', 'Brandy Melville', 'Zara', 'H&M', 'Gap', 'Hollister'] },
+];
+// PLACEHOLDER: the category list is still open in the spec.
 const CATS = {
-  tee: { label: 'T-shirt', base: 10, art: 'top', group: 'tops' },
-  top: { label: 'Top / blouse', base: 14, art: 'top', group: 'tops' },
-  sweater: { label: 'Sweater / sweatshirt', base: 20, art: 'top', group: 'tops' },
-  active: { label: 'Activewear', base: 16, art: 'top', group: 'tops' },
-  jeans: { label: 'Jeans', base: 24, art: 'bottom', group: 'bottoms' },
-  pants: { label: 'Pants', base: 18, art: 'bottom', group: 'bottoms' },
-  shorts: { label: 'Shorts', base: 12, art: 'bottom', group: 'bottoms' },
-  skirt: { label: 'Skirt', base: 16, art: 'dress', group: 'dresses' },
-  dress: { label: 'Dress', base: 26, art: 'dress', group: 'dresses' },
-  jacket: { label: 'Jacket', base: 34, art: 'outer', group: 'outer' },
-  coat: { label: 'Coat', base: 48, art: 'outer', group: 'outer' },
-  sneakers: { label: 'Sneakers', base: 36, art: 'shoe', group: 'shoes' },
-  shoes: { label: 'Shoes / boots', base: 30, art: 'shoe', group: 'shoes' },
-  bag: { label: 'Bag', base: 28, art: 'bag', group: 'bags' },
-  accessory: { label: 'Accessory', base: 10, art: 'bag', group: 'bags' },
+  tops: { label: 'Tops', art: 'top' }, sweaters: { label: 'Sweaters', art: 'top' }, activewear: { label: 'Activewear', art: 'top' },
+  dresses: { label: 'Dresses', art: 'dress' }, skirts: { label: 'Skirts', art: 'dress' },
+  jeans: { label: 'Jeans', art: 'bottom' }, pants: { label: 'Pants', art: 'bottom' }, shorts: { label: 'Shorts', art: 'bottom' },
+  outerwear: { label: 'Outerwear', art: 'outer' },
 };
-const GROUPS = { all: 'All', tops: 'Tops', bottoms: 'Bottoms', dresses: 'Dresses & skirts', outer: 'Outerwear', shoes: 'Shoes', bags: 'Bags & more' };
-const TIERS = {
-  budget: { label: 'Budget (Shein, Old Navy, Target)', mult: 0.7 },
-  mall: { label: 'Mall (H&M, Gap, American Eagle)', mult: 1 },
-  premium: { label: 'Premium (Lululemon, Levi\'s, Nike, Madewell)', mult: 1.4 },
-  designer: { label: 'Designer (Coach, Reformation, Agolde)', mult: 2.4 },
+const SIZES = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '00', '0', '2', '4', '6', '8', '10', '12', '14', '24', '25', '26', '27', '28', '29', '30', '31', '32'];
+// PLACEHOLDER: campus locations and times, and BYU's permission, are still open in the spec.
+const SLOT_PLAN = {
+  dropoff: { location: 'Campus drop-off (location TBD)', hour: 12, hours: 2 },
+  pickup: { location: 'Campus pickup (location TBD)', hour: 16, hours: 2 },
 };
-const CONDS = {
-  nwt: { label: 'New with tags', mult: 1 },
-  likenew: { label: 'Like new', mult: 0.85 },
-  good: { label: 'Good, light wear', mult: 0.65 },
-  fair: { label: 'Fair, visible wear', mult: 0.35 },
-};
-const TRENDS = {
-  hot: { label: 'Trending', mult: 1.3 },
-  current: { label: 'In style', mult: 1 },
-  classic: { label: 'Classic', mult: 0.9 },
-  dated: { label: 'Out of style', mult: 0.5 },
-};
-const DENY_REASONS = ['Not on-trend enough to resell', 'Too much wear or damage', 'Doesn\'t match the photos', 'Stains, odor, or pilling'];
-
-// Pricing rule: the shelf price is a fair resale value. The trader gets that value
-// minus a small markup ($2, +$1 if trending, +$1 if new/like new), so we never
-// charge more than a couple of dollars over what we paid.
-function valuate(cat, tier, cond, trend) {
-  const fair = CATS[cat].base * TIERS[tier].mult * CONDS[cond].mult * TRENDS[trend].mult;
-  const markup = 2 + (trend === 'hot' ? 1 : 0) + (cond === 'nwt' || cond === 'likenew' ? 1 : 0);
-  const payout = Math.max(1, Math.round(fair - markup));
-  // Typical buy-back stores pay roughly 30% of resale value.
-  const typical = Math.max(0.5, Math.round(fair * 0.3 * 2) / 2);
-  return { fair, markup, payout, price: payout + markup, typical };
-}
-function suggestDenial(cond, trend) {
-  if (cond === 'fair') return DENY_REASONS[1];
-  if (trend === 'dated') return DENY_REASONS[0];
-  return null;
-}
+const REJECT_REASONS = ['Brand isn\'t on our list', 'Too much wear or damage', 'Not women\'s clothing', 'Doesn\'t match the photo'];
 
 // ===== HELPERS =====
-const KEY = 'rerack-v1';
-const money = n => '$' + (Math.round(n * 100) / 100).toFixed(2);
+const KEY = 'rerack-v2';
+const DAY = 864e5;
+const round2 = n => Math.round(n * 100) / 100;
+const money = n => '$' + round2(n).toFixed(2);
 const uid = p => p + '-' + Math.random().toString(36).slice(2, 7).toUpperCase();
-const code = () => Math.random().toString(36).slice(2, 8).toUpperCase();
-const daysAgo = d => new Date(Date.now() - d * 864e5).toISOString();
-const daysAhead = d => new Date(Date.now() + d * 864e5).toISOString();
+const nowIso = () => new Date().toISOString();
+const daysAgo = d => new Date(Date.now() - d * DAY).toISOString();
+const daysAhead = d => new Date(Date.now() + d * DAY).toISOString();
 const fmtDate = iso => new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+const fmtTime = iso => new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const opts = (obj, sel) => Object.entries(obj).map(([k, v]) => `<option value="${k}"${k === sel ? ' selected' : ''}>${esc(v.label ?? v)}</option>`).join('');
+const optList = (pairs, sel) => pairs.map(([k, v]) => `<option value="${esc(k)}"${k === sel ? ' selected' : ''}>${esc(v)}</option>`).join('');
+const catPairs = () => Object.entries(CATS).map(([k, v]) => [k, v.label]);
+const sizePairs = () => SIZES.map(s => [s, s]);
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 const swatch = id => 'sw' + (1 + [...String(id)].reduce((a, c) => a + c.charCodeAt(0), 0) % 6);
+
+// ----- Business rules (SPEC §7) -----
+const tierById = (id, list = S.tiers) => list.find(t => t.id === id) || null;
+const tierForBrand = brand => { const b = brand.trim().toLowerCase(); return b ? S.tiers.find(t => t.brands.some(x => x.toLowerCase() === b)) || null : null; };
+const creditFor = tier => round2(tier.listPrice * CREDIT_RATE);
+const listPrice = i => tierById(i.tier).listPrice;
+const daysListed = i => Math.floor((Date.now() - new Date(i.listedAt)) / DAY);
+const isAged = i => daysListed(i) >= AGED_DAYS;
+const memberPrice = i => isAged(i) ? round2(listPrice(i) * (1 - AGED_DISCOUNT)) : listPrice(i);
+const priceFor = i => isMember() ? memberPrice(i) : listPrice(i);
+const balance = () => round2(S.ledger.reduce((a, e) => a + e.amt, 0));
+const itemName = i => i.title || `${i.brand} ${CATS[i.cat].label.toLowerCase()}`;
+const membership = () => S.user.membership.status;  // 'none' | 'active' | 'lapsed'
+const isMember = () => !!S.user && membership() === 'active';
+
+// ----- Slots -----
+function makeSlots(type, count) {
+  const plan = SLOT_PLAN[type], out = [];
+  for (let d = 1; out.length < count; d++) {
+    const start = new Date(); start.setDate(start.getDate() + d); start.setHours(plan.hour, 0, 0, 0);
+    if (start.getDay() === 0) continue;  // no Sunday slots
+    out.push({ id: uid('SL'), type, location: plan.location, start: start.toISOString(), end: new Date(start.getTime() + plan.hours * 36e5).toISOString() });
+  }
+  return out;
+}
+const slotById = id => S.slots.find(s => s.id === id);
+const futureSlots = type => S.slots.filter(s => s.type === type && new Date(s.end) > new Date()).sort((a, b) => a.start.localeCompare(b.start));
+const fmtSlot = s => s ? `${new Date(s.start).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}, ${fmtTime(s.start)}–${fmtTime(s.end)} · ${s.location}` : 'Slot removed';
+// Keep the prototype usable when it's reopened weeks later: if every slot of a type is past, open new default ones.
+function topUpSlots() { ['dropoff', 'pickup'].forEach(t => { if (!futureSlots(t).length) S.slots.push(...makeSlots(t, 5)); }); }
 
 const ART = {
   top: '<path d="M10 4 L13 3 Q16 6 19 3 L22 4 L29 10 L25 15 L22 12 L22 29 L10 29 L10 12 L7 15 L3 10 Z"/>',
   bottom: '<path d="M8 3 H24 L26 29 H18.5 L16 11 L13.5 29 H6 Z"/>',
   dress: '<path d="M12 3 H14 Q16 6 18 3 H20 L19 10 L26 29 H6 L13 10 Z"/>',
   outer: '<path d="M11 3 L16 9 L21 3 L28 7 L27 29 H17 V10 H15 V29 H5 L4 7 Z"/>',
-  shoe: '<path d="M3 19 Q3 12 8 12 L12 16 Q18 18.5 25 19.5 Q29 20.5 29 24 V27 H3 Z"/>',
-  bag: '<path d="M6 12 H26 L28 29 H4 Z M10 12 Q10 4 16 4 Q22 4 22 12 H19.5 Q19.5 6.5 16 6.5 Q12.5 6.5 12.5 12 Z"/>',
 };
 const ICON = {
   shop: '<path d="M12 8a2.2 2.2 0 1 0-2.2-2.2M12 8v1.5L3 16.5h18L12 9.5"/>',
-  bag: '<path d="M5 8h14l-1 12H6zM9 8a3 3 0 0 1 6 0"/>',
-  trade: '<path d="M3 7.5 12 3.5l9 4v9l-9 4-9-4zM3 7.5l9 4 9-4M12 11.5v9"/>',
-  wallet: '<path d="M3 7h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H3zM3 7l12-3v3M16 13h2"/>',
+  orders: '<path d="M5 8h14l-1 12H6zM9 8a3 3 0 0 1 6 0"/>',
+  dropoff: '<path d="M3 7.5 12 3.5l9 4v9l-9 4-9-4zM3 7.5l9 4 9-4M12 11.5v9"/>',
+  credit: '<path d="M3 7h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H3zM3 7l12-3v3M16 13h2"/>',
   account: '<path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0"/>',
-  staff: '<path d="M3 21V9l9-5 9 5v12M7 21v-7h10v7M7 17.5h10"/>',
+  admin: '<path d="M3 21V9l9-5 9 5v12M7 21v-7h10v7M7 17.5h10"/>',
 };
 function tile(item, extra = '') {
-  const photo = item.photo || (item.photos && item.photos[0]);
-  return `<div class="tile ${swatch(item.id)}">${photo ? `<img src="${photo}" alt="">` : `<svg viewBox="0 0 32 32" aria-hidden="true">${ART[CATS[item.cat].art]}</svg>`}${extra}</div>`;
+  return `<div class="tile ${swatch(item.id)}">${item.photo ? `<img src="${item.photo}" alt="">` : `<svg viewBox="0 0 32 32" aria-hidden="true">${ART[CATS[item.cat].art]}</svg>`}${extra}</div>`;
 }
 
 // ===== STATE =====
@@ -301,68 +291,68 @@ function save() {
   try { localStorage.setItem(KEY, JSON.stringify(S)); return true; }
   catch (e) { toast('This browser blocked saving, so changes will reset when you close the page.'); return false; }
 }
-function seedInventory() {
+function seedItems(tiers) {
+  // Inventory other members already dropped off. The last number is days since listing.
   const rows = [
-    ['provo', 'Wide-leg high-rise jeans', 'Levi\'s', 'premium', 'jeans', '28', 'likenew', 'hot'],
-    ['provo', 'Oversized crewneck sweatshirt', 'Aerie', 'mall', 'sweater', 'M', 'good', 'current'],
-    ['provo', 'Align leggings 25"', 'Lululemon', 'premium', 'active', '6', 'likenew', 'hot'],
-    ['provo', 'Floral midi dress', 'Madewell', 'premium', 'dress', 'S', 'good', 'current'],
-    ['provo', 'Sherpa fleece pullover', 'Patagonia', 'premium', 'jacket', 'L', 'good', 'hot'],
-    ['provo', 'Ribbed baby tee', 'Brandy Melville', 'mall', 'tee', 'One size', 'likenew', 'hot'],
-    ['provo', 'Air Force 1 \'07', 'Nike', 'premium', 'sneakers', '8.5', 'good', 'current'],
-    ['provo', 'Linen button-up shirt', 'J.Crew', 'mall', 'top', 'M', 'nwt', 'classic'],
-    ['provo', 'Pleated tennis skirt', 'H&M', 'budget', 'skirt', 'S', 'likenew', 'current'],
-    ['provo', 'Wool-blend topcoat', 'Banana Republic', 'mall', 'coat', 'M', 'good', 'classic'],
-    ['provo', 'Leather crossbody', 'Coach', 'designer', 'bag', 'One size', 'good', 'current'],
-    ['provo', 'Relaxed cargo pants', 'Abercrombie', 'mall', 'pants', '30', 'likenew', 'hot'],
-    ['slc', 'Nuptse puffer jacket', 'The North Face', 'premium', 'jacket', 'M', 'good', 'hot'],
-    ['slc', 'Straight-leg jeans', 'Agolde', 'designer', 'jeans', '27', 'good', 'current'],
-    ['slc', 'Chunky knit cardigan', 'Free People', 'premium', 'sweater', 'S', 'likenew', 'current'],
-    ['slc', '1460 Chelsea boots', 'Dr. Martens', 'premium', 'shoes', '9', 'good', 'classic'],
-    ['stg', 'Linen pull-on shorts', 'Old Navy', 'budget', 'shorts', 'M', 'likenew', 'current'],
-    ['stg', 'Silk slip dress', 'Reformation', 'designer', 'dress', '4', 'likenew', 'hot'],
-    ['stg', 'Dri-FIT running shorts', 'Nike', 'premium', 'active', 'S', 'good', 'current'],
+    ['Wide-leg high-rise jeans', 'Levi\'s', 'jeans', '28', 't2', 3],
+    ['Align leggings 25"', 'Lululemon', 'activewear', '6', 't1', 6],
+    ['Floral midi dress', 'Madewell', 'dresses', 'S', 't1', 34],
+    ['Oversized crewneck', 'Aerie', 'sweaters', 'M', 't2', 12],
+    ['Ribbed baby tee', 'Brandy Melville', 'tops', 'S', 't3', 9],
+    ['Sherpa fleece pullover', 'Patagonia', 'outerwear', 'L', 't1', 18],
+    ['Pleated tennis skirt', 'Zara', 'skirts', 'S', 't3', 41],
+    ['Linen button-up', 'J.Crew', 'tops', 'M', 't2', 31],
+    ['Relaxed cargo pants', 'Abercrombie', 'pants', '4', 't2', 2],
+    ['Silk slip dress', 'Reformation', 'dresses', '4', 't1', 22],
+    ['Denim cutoff shorts', 'American Eagle', 'shorts', '6', 't3', 36],
+    ['Chunky knit cardigan', 'Free People', 'sweaters', 'S', 't1', 14],
   ];
-  return rows.map((r, i) => {
-    const [location, title, brand, tier, cat, size, cond, trend] = r;
-    const v = valuate(cat, tier, cond, trend);
-    return { id: 'RR-' + (1001 + i), location, title, brand, tier, cat, size, cond, trend, paid: v.payout, price: v.price, photo: null, status: 'available', listed: daysAgo(i % 9) };
-  });
+  return rows.map(([title, brand, cat, size, tier, age], n) => ({ id: 'RR-' + (1001 + n), dropOffId: null, mine: false, photo: null, title, brand, cat, size,
+    estTier: tier, tier, status: 'listed', creditAwarded: creditFor(tierById(tier, tiers)), listedAt: daysAgo(age), gradedAt: daysAgo(age), rejectReason: null }));
 }
+function defaultUI() { return { tab: 'shop', q: '', cat: '', size: '', brand: '', signup: false, adminTab: 'grading', doSlot: '' }; }
 function freshState() {
-  return { user: null, location: 'provo', inventory: seedInventory(), tradeIns: [], cart: { location: null, ids: [] }, orders: [], ledger: [], staff: false, ui: { tab: 'shop', group: 'all', q: '', signup: false, staffTab: 'review' } };
+  const tiers = JSON.parse(JSON.stringify(DEFAULT_TIERS));
+  return { user: null, tiers, slots: [...makeSlots('dropoff', 5), ...makeSlots('pickup', 5)], dropOffs: [], items: seedItems(tiers), ledger: [], orders: [], admin: false, ui: defaultUI() };
 }
-function mkItem(cat, brand, tier, size, cond, trend, status, reason) {
-  const it = { id: uid('IT'), photos: [], cat, brand, tier, size, cond, note: '', trend, status, reason: reason || null, payout: null };
-  if (trend && status !== 'denied') it.payout = valuate(cat, tier, cond, trend).payout;
-  return it;
+function myItem(dropOffId, brand, cat, size, title, estTier, extra) {
+  return Object.assign({ id: uid('IT'), dropOffId, mine: true, photo: null, title, brand, cat, size, estTier, tier: null, status: 'submitted', creditAwarded: null, listedAt: null, gradedAt: null, rejectReason: null }, extra);
 }
 function demoState() {
   const s = freshState();
-  s.user = { name: 'Demo Member', email: 'demo@example.com', street: '800 N 400 E', city: 'Provo', zip: '84604', home: 'provo', credit: 24, card: { last4: '4242' },
-    membership: { status: 'active', since: daysAgo(40), renews: daysAhead(20), lastCharge: daysAgo(10) }, demo: true };
-  s.ledger = [{ date: daysAgo(12), amt: 24, note: 'Trade-in TI-2041 · 3 items accepted' }];
-  s.tradeIns = [
-    { id: 'TI-2058', created: daysAgo(1), status: 'offer', method: null, items: [
-      mkItem('jacket', 'Carhartt', 'premium', 'L', 'good', 'hot', 'offered'),
-      mkItem('tee', 'Shein', 'budget', 'M', 'good', 'dated', 'denied', DENY_REASONS[0]),
-      mkItem('jeans', 'American Eagle', 'mall', '30', 'likenew', 'current', 'offered')] },
-    { id: 'TI-2063', created: daysAgo(0), status: 'review', method: null, items: [
-      mkItem('dress', 'Free People', 'premium', 'S', 'likenew', null, 'pending'),
-      mkItem('sneakers', 'New Balance', 'premium', '7.5', 'good', null, 'pending')] },
-  ];
+  s.user = { name: 'Demo Member', email: 'demo@byu.edu', card: { last4: '4242' }, membership: { status: 'active', since: daysAgo(40), renews: daysAhead(20) }, demo: true };
+  // A drop-off from 12 days ago that's already graded.
+  const pastStart = new Date(Date.now() - 12 * DAY); pastStart.setHours(SLOT_PLAN.dropoff.hour, 0, 0, 0);
+  const past = { id: 'SL-PAST', type: 'dropoff', location: SLOT_PLAN.dropoff.location, start: pastStart.toISOString(), end: new Date(pastStart.getTime() + SLOT_PLAN.dropoff.hours * 36e5).toISOString() };
+  s.slots.push(past);
+  s.dropOffs.push({ id: 'DO-2041', slotId: past.id, submittedAt: daysAgo(13), status: 'graded' });
+  const graded = { status: 'listed', listedAt: daysAgo(11), gradedAt: daysAgo(11) };
+  const a = myItem('DO-2041', 'Levi\'s', 'jeans', '26', 'Straight-leg jeans', 't2', Object.assign({ tier: 't2', creditAwarded: 15 }, graded));
+  const b = myItem('DO-2041', 'Hollister', 'tops', 'M', 'Cropped cardigan', 't3', Object.assign({ tier: 't3', creditAwarded: 9 }, graded));
+  const c = myItem('DO-2041', 'Shein', 'tops', 'M', null, null, { status: 'rejected', gradedAt: daysAgo(11), rejectReason: REJECT_REASONS[0] });
+  s.items.push(a, b, c);
+  s.ledger.push({ id: 'CR-1', date: daysAgo(11), amt: 15, type: 'earned', itemId: a.id, note: `Accepted: ${a.title}` });
+  s.ledger.push({ id: 'CR-2', date: daysAgo(11), amt: 9, type: 'earned', itemId: b.id, note: `Accepted: ${b.title}` });
+  // An order waiting for pickup, paid partly with credit.
+  const tee = s.items.find(i => i.id === 'RR-1005'); tee.status = 'sold';
+  const pick = s.slots.find(x => x.type === 'pickup');
+  s.orders.push({ id: 'OR-7Q2KD', date: daysAgo(1), itemId: tee.id, price: 15, creditUsed: 9, cash: 6, cardLast4: '4242', slotId: pick.id, status: 'paid', pickedUpAt: null });
+  s.ledger.push({ id: 'CR-3', date: daysAgo(1), amt: -9, type: 'spent', itemId: tee.id, orderId: 'OR-7Q2KD', note: 'Order OR-7Q2KD · Ribbed baby tee' });
+  // A drop-off waiting for grading.
+  const next = s.slots.find(x => x.type === 'dropoff');
+  s.dropOffs.push({ id: 'DO-2063', slotId: next.id, submittedAt: daysAgo(0), status: 'submitted' });
+  s.items.push(myItem('DO-2063', 'Free People', 'dresses', 'S', 'Tiered maxi dress', 't1'),
+    myItem('DO-2063', 'Nike', 'activewear', 'M', 'Running shorts', 't2'),
+    myItem('DO-2063', 'Old Navy', 'tops', 'L', null, null));
   return s;
 }
 let S = load() || freshState();
-S.ui = Object.assign({ tab: 'shop', group: 'all', q: '', signup: false, staffTab: 'review' }, S.ui);
+S.ui = Object.assign(defaultUI(), S.ui);
+topUpSlots();
 let sheet = null;          // { type, ... } — not persisted
-let pendingPhotos = [];    // photos for the trade-in item being added
-let draftBox = [];         // items added to the trade-in box but not yet submitted
+let pendingPhoto = null;   // photo for the drop-off item being added
+let draftBag = [];         // items added to the drop-off bag but not yet submitted
 let confirming = null;     // inline confirmation key
-
-const isMember = () => S.user && S.user.membership.status === 'active';
-const isHome = () => S.user && S.location === S.user.home;
-const loc = () => LOCATIONS[S.location];
 
 // ===== RENDER =====
 function render() {
@@ -372,7 +362,7 @@ function render() {
 function renderSheet() {
   const el = document.getElementById('sheet');
   if (!sheet) { el.innerHTML = ''; return; }
-  const body = { item: itemSheet, locations: locationsSheet, order: orderSheet }[sheet.type]();
+  const body = { item: itemSheet, checkout: checkoutSheet, order: orderSheet }[sheet.type]();
   el.innerHTML = `<div class="scrim" data-act="closeSheet"><div class="sheet" role="dialog" aria-modal="true">${body}</div></div>`;
 }
 function toast(msg) {
@@ -380,47 +370,41 @@ function toast(msg) {
   t.textContent = msg; t.hidden = false;
   clearTimeout(toast.t); toast.t = setTimeout(() => { t.hidden = true; }, 3200);
 }
+function showErr(id, msg) { const el = document.getElementById(id); el.textContent = msg; el.hidden = false; }
 
 // ----- Onboarding -----
 function onboarding() {
-  const ex = valuate('jeans', 'premium', 'likenew', 'hot');
   return `<div class="app stack">
-    <div class="top"><div class="brand">Re<span>Rack</span></div><span class="chip-btn"><span class="dot"></span>Orem – Provo</span></div>
+    <div class="top"><div class="brand">Re<span>Rack</span></div><span class="chip-btn"><span class="dot"></span>BYU · Provo</span></div>
     <section class="hero">
-      <p class="eyebrow">Clothing swap · Utah County</p>
-      <h1>Trade in your closet. <em>Shop</em> everyone else's.</h1>
-      <p class="muted">Snap photos of clothes you're done with, get a real estimate, then ship or drop them at our Provo warehouse. Spend the credit on pieces other members traded in.</p>
+      <p class="eyebrow">Clothing swap · BYU women</p>
+      <h1>Drop off a bag. <em>Get 60%</em> back in credit.</h1>
+      <p class="muted">No listings, no messages, no meetups. Bring clothes you don't wear to a campus drop-off slot. We grade each piece by hand and give you credit worth 60% of its store price, to spend on clothes other students brought in.</p>
     </section>
     <div class="panel stack">
-      <p class="eyebrow">What a pair of Levi's like-new trending jeans gets you</p>
-      <div class="compare">
-        <div class="them"><span class="small muted">Typical buy-back store</span><span class="num">${money(ex.typical)}</span><span class="small muted">about 30% of resale</span></div>
-        <div class="us"><span class="small">ReRack credit</span><span class="num">${money(ex.payout)}</span><span class="small">resale price minus ${money(ex.markup)}</span></div>
-      </div>
-      <p class="small muted">Everything on our racks is priced at fair resale value, never more than a few dollars above what we paid the person who traded it in.</p>
+      <p class="eyebrow">What each piece earns</p>
+      ${tierTable()}
+      <p class="small muted">Brand lists and prices are placeholders until the tiers are final.</p>
     </div>
-    <ol class="steps"><li>Photograph what you're trading</li><li>Get an estimate from our team</li><li>Ship the box or drop it off</li><li>Shop with your credit</li></ol>
+    <ol class="steps"><li>Join for ${money(MEMBERSHIP_PRICE)}/mo</li><li>Drop off a bag on campus</li><li>We grade it; credit lands in days</li><li>Shop and pick up on campus</li></ol>
     ${S.ui.signup ? signupForm() : `<div class="stack">
-      <button class="btn block" data-act="showSignup">Become a member · ${money(MEMBERSHIP_PRICE)}/mo</button>
+      <button class="btn block" data-act="showSignup">Create an account</button>
       <button class="btn ghost block" data-act="demo">Explore with a demo account</button>
-      <p class="small muted" style="text-align:center">Memberships are open to Orem and Provo addresses.</p></div>`}
+      <p class="small muted" style="text-align:center">Anyone with a BYU email can shop. Membership adds drop-offs, store credit, and member prices.</p></div>`}
   </div>`;
+}
+function tierTable() {
+  return `<table class="tbl"><thead><tr><th>Tier</th><th>Brands</th><th class="num">Store price</th><th class="num">Your credit</th></tr></thead>
+    <tbody>${S.tiers.map(t => `<tr><td>${esc(t.name)}</td><td class="small">${esc(t.brands.join(', '))}</td><td class="num mono">${money(t.listPrice)}</td><td class="num mono">${money(creditFor(t))}</td></tr>`).join('')}</tbody></table>`;
 }
 function signupForm() {
   return `<form id="signupForm" class="panel stack" novalidate>
-    <h2 class="section-title">Create your membership</h2>
+    <h2 class="section-title">Create your account</h2>
     <div class="field"><label for="suName">Full name</label><input id="suName" autocomplete="name" required></div>
-    <div class="field"><label for="suEmail">Email</label><input id="suEmail" type="email" autocomplete="email" required></div>
-    <div class="field"><label for="suStreet">Street address</label><input id="suStreet" autocomplete="address-line1" required></div>
-    <div class="grid2">
-      <div class="field"><label for="suCity">City</label><input id="suCity" autocomplete="address-level2" required></div>
-      <div class="field"><label for="suZip">ZIP</label><input id="suZip" inputmode="numeric" maxlength="5" autocomplete="postal-code" required></div>
-    </div>
-    <hr class="stitch">
-    <div class="plan"><div><strong>ReRack Membership</strong><div class="small muted">Trade in, shop, and free shipping from your home warehouse. Cancel anytime.</div></div><span class="tag big">${money(MEMBERSHIP_PRICE)}/mo</span></div>
-    ${cardFields('su')}
+    <div class="field"><label for="suEmail">BYU email</label><input id="suEmail" type="email" autocomplete="email" placeholder="you@byu.edu" required></div>
+    <p class="small muted">Your account is free and lets you shop right away. You can become a member any time.</p>
     <p id="suErr" class="err" hidden></p>
-    <button class="btn block" type="submit">Start membership</button>
+    <button class="btn block" type="submit">Create account</button>
     <button class="btn quiet block" type="button" data-act="hideSignup">Back</button>
   </form>`;
 }
@@ -430,7 +414,7 @@ function cardFields(p) {
       <div class="field"><label for="${p}Exp">Expires (MM/YY)</label><input id="${p}Exp" autocomplete="cc-exp" placeholder="08/28"></div>
       <div class="field"><label for="${p}Cvc">CVC</label><input id="${p}Cvc" inputmode="numeric" autocomplete="cc-csc" placeholder="123"></div>
     </div>
-    <p class="small muted">Prototype only: no card is actually charged.</p>`;
+    <p class="small muted">Prototype only: no card is actually charged. The real app uses Stripe.</p>`;
 }
 function readCard(p) {
   const num = document.getElementById(p + 'Card').value.replace(/\D/g, '');
@@ -443,334 +427,433 @@ function readCard(p) {
   if (cvc.length < 3) return { err: 'Enter the 3 or 4 digit CVC.' };
   return { last4: num.slice(-4) };
 }
+// The membership sign-up / renew form. Only one appears on any screen.
+function membershipOffer() {
+  const card = S.user.card;
+  return `<form id="memberForm" class="panel stack" novalidate>
+    <div class="plan"><div><strong>ReRack Membership</strong><div class="small muted">Drop off clothes for credit, pay with credit, and get ${AGED_DISCOUNT * 100}% off anything listed ${AGED_DAYS}+ days. Cancel anytime.</div></div><span class="tag big">${money(MEMBERSHIP_PRICE)}/mo</span></div>
+    ${card ? `<p class="small">Charged monthly to card ••${esc(card.last4)}.</p>` : cardFields('mb')}
+    <p id="mbErr" class="err" hidden></p>
+    <button class="btn block" type="submit">${membership() === 'lapsed' ? 'Renew' : 'Start'} membership · ${money(MEMBERSHIP_PRICE)}/mo</button>
+  </form>`;
+}
 
 // ----- App shell -----
 function shell() {
-  const tabs = [['shop', 'Shop'], ['bag', 'Bag'], ['trade', 'Trade in'], ['wallet', 'Credit'], ['account', 'Account']];
-  if (S.staff) tabs.push(['staff', 'Warehouse']);
-  const view = { shop: shopView, bag: bagView, trade: tradeView, wallet: walletView, account: accountView, staff: staffView }[S.ui.tab] || shopView;
-  const bagCount = S.cart.ids.length;
+  const tabs = [['shop', 'Shop'], ['orders', 'Orders'], ['dropoff', 'Drop off'], ['credit', 'Credit'], ['account', 'Account']];
+  if (S.admin) tabs.push(['admin', 'Admin']);
+  const view = { shop: shopView, orders: ordersView, dropoff: dropoffView, credit: creditView, account: accountView, admin: adminView }[S.ui.tab] || shopView;
+  const badges = { orders: S.orders.filter(o => o.status === 'paid').length, admin: S.items.filter(i => i.status === 'submitted').length };
+  const status = { active: 'Member', lapsed: 'Lapsed', none: 'Non-member' }[membership()];
   return `<div class="app">
     <header class="top">
       <div class="brand">Re<span>Rack</span></div>
-      <button class="chip-btn" data-act="openLocations" aria-label="Change shopping location"><span class="dot ${isHome() ? '' : 'travel'}"></span>${esc(loc().short)}</button>
-      <button class="chip-btn credit-pill" data-act="tab" data-tab="wallet" aria-label="Store credit">${money(S.user.credit)}</button>
+      <button class="chip-btn" data-act="tab" data-tab="account" aria-label="Membership status"><span class="dot ${isMember() ? '' : 'off'}"></span>${status}</button>
+      ${membership() !== 'none' ? `<button class="chip-btn credit-pill" data-act="tab" data-tab="credit" aria-label="Store credit">${money(balance())}</button>` : ''}
     </header>
     <main class="stack">${view()}</main>
   </div>
-  <nav class="nav"><div class="nav-inner">${tabs.map(([k, l]) => `<button data-act="tab" data-tab="${k}"${S.ui.tab === k ? ' aria-current="page"' : ''}><svg viewBox="0 0 24 24" aria-hidden="true">${ICON[k]}</svg>${l}${k === 'bag' && bagCount ? `<span class="badge">${bagCount}</span>` : ''}</button>`).join('')}</div></nav>`;
-}
-function memberGate() {
-  return isMember() ? '' : `<div class="notice warn">Your membership is paused. <button class="btn small" data-act="resume">Resume for ${money(MEMBERSHIP_PRICE)}/mo</button> to trade in and check out.</div>`;
+  <nav class="nav"><div class="nav-inner">${tabs.map(([k, l]) => `<button data-act="tab" data-tab="${k}"${S.ui.tab === k ? ' aria-current="page"' : ''}><svg viewBox="0 0 24 24" aria-hidden="true">${ICON[k]}</svg>${l}${badges[k] ? `<span class="badge">${badges[k]}</span>` : ''}</button>`).join('')}</div></nav>`;
 }
 
 // ----- Shop -----
 function shopView() {
-  const l = loc();
-  return `${memberGate()}
-    <div class="notice ${isHome() ? '' : 'thread'}">
-      ${isHome()
-        ? `<strong>${esc(l.name)}</strong> is your home warehouse. Orders ship free to ${esc(S.user.street)}.`
-        : `<strong>Traveling: ${esc(l.name)}.</strong> Your credit works here, but items from this warehouse are <strong>pickup only</strong> at ${esc(l.address)}. <button class="btn small quiet" data-act="setLoc" data-loc="${S.user.home}">Back to ${esc(LOCATIONS[S.user.home].short)}</button>`}
+  const listed = S.items.filter(i => i.status === 'listed');
+  const brands = [...new Set(listed.map(i => i.brand))].sort((a, b) => a.localeCompare(b));
+  const sizes = SIZES.filter(s => listed.some(i => i.size === s));
+  const pick = (id, key, label, pairs) => `<div class="field"><label for="${id}">${label}</label><select id="${id}" data-filter="${key}"><option value="">All</option>${optList(pairs, S.ui[key])}</select></div>`;
+  return `${isMember() ? '' : `<div class="notice thread">You're seeing non-member prices. Members get ${AGED_DISCOUNT * 100}% off anything listed ${AGED_DAYS}+ days, pay with store credit, and can drop off clothes. <button class="btn small" data-act="tab" data-tab="dropoff">${membership() === 'lapsed' ? 'Renew' : 'Become a member'}</button></div>`}
+    <div class="field"><label for="q" class="eyebrow">Search the store</label><input id="q" type="search" placeholder="Brand or item" value="${esc(S.ui.q)}"></div>
+    <div class="filters">
+      ${pick('fCat', 'cat', 'Category', catPairs())}
+      ${pick('fSize', 'size', 'Size', sizes.map(s => [s, s]))}
+      ${pick('fBrand', 'brand', 'Brand', brands.map(b => [b, b]))}
     </div>
-    <div class="field"><label for="q" class="eyebrow">Search ${esc(l.short)} racks</label><input id="q" type="search" placeholder="Brand, item, or size" value="${esc(S.ui.q)}"></div>
-    <div class="chips" role="group" aria-label="Category">${Object.entries(GROUPS).map(([k, v]) => `<button data-act="group" data-group="${k}" aria-pressed="${S.ui.group === k}">${v}</button>`).join('')}</div>
     <div id="grid">${gridHTML()}</div>`;
 }
 function gridHTML() {
   const q = S.ui.q.trim().toLowerCase();
-  const items = S.inventory.filter(i => i.status === 'available' && i.location === S.location
-    && (S.ui.group === 'all' || CATS[i.cat].group === S.ui.group)
-    && (!q || [i.title, i.brand, i.size, CATS[i.cat].label].join(' ').toLowerCase().includes(q)))
-    .sort((a, b) => b.listed.localeCompare(a.listed));
-  if (!items.length) return `<div class="notice">Nothing matches on the ${esc(loc().short)} racks right now. New trade-ins are posted every day.</div>`;
-  return `<p class="small muted">${items.length} item${items.length === 1 ? '' : 's'} at ${esc(loc().name)}</p><div class="grid">${items.map(card).join('')}</div>`;
+  const items = S.items.filter(i => i.status === 'listed'
+    && (!S.ui.cat || i.cat === S.ui.cat) && (!S.ui.size || i.size === S.ui.size) && (!S.ui.brand || i.brand === S.ui.brand)
+    && (!q || [itemName(i), i.brand, CATS[i.cat].label].join(' ').toLowerCase().includes(q)))
+    .sort((a, b) => b.listedAt.localeCompare(a.listedAt));
+  if (!items.length) return `<div class="notice">Nothing matches right now. New drop-offs are listed as soon as they're graded.</div>`;
+  return `<p class="small muted">${plural(items.length, 'item')}</p><div class="grid">${items.map(card).join('')}</div>`;
+}
+function priceTag(i) {
+  const p = priceFor(i), list = listPrice(i);
+  return `<span class="row" style="gap:6px"><span class="tag">${money(p)}</span>${p < list ? `<s class="strike">${money(list)}</s>` : ''}</span>`;
 }
 function card(i) {
-  const inBag = S.cart.ids.includes(i.id);
   return `<button class="card" data-act="openItem" data-id="${i.id}">
-    ${tile(i, inBag ? '<span class="pill ok in-bag">In bag</span>' : '')}
+    ${tile(i)}
     <div class="card-body">
       <span class="small muted">${esc(i.brand)} · ${esc(i.size)}</span>
-      <span class="card-title">${esc(i.title)}</span>
-      <div class="row spread"><span class="tag">${money(i.price)}</span>${i.trend === 'hot' ? '<span class="pill hot">Trending</span>' : ''}</div>
+      <span class="card-title">${esc(itemName(i))}</span>
+      <div class="row spread">${priceTag(i)}${isAged(i) ? `<span class="pill hot">${isMember() ? 'Member price' : 'Members −30%'}</span>` : ''}</div>
     </div></button>`;
 }
 function itemSheet() {
-  const i = S.inventory.find(x => x.id === sheet.id);
+  const i = S.items.find(x => x.id === sheet.id);
   if (!i) return '';
-  const inBag = S.cart.ids.includes(i.id);
-  const l = LOCATIONS[i.location];
+  const days = daysListed(i), list = listPrice(i), mp = memberPrice(i);
   return `<button class="close" data-act="closeSheet" aria-label="Close">✕</button>
     <div class="stack">
       ${tile(i)}
       <div class="stack" style="gap:6px">
         <span class="small muted">${esc(i.brand)} · ${esc(CATS[i.cat].label)} · Size ${esc(i.size)}</span>
-        <h2 class="display" style="font-size:22px">${esc(i.title)}</h2>
-        <div class="row"><span class="pill">${CONDS[i.cond].label}</span><span class="pill ${i.trend === 'hot' ? 'hot' : ''}">${TRENDS[i.trend].label}</span><span class="small muted mono">${i.id}</span></div>
+        <h2 class="display" style="font-size:22px">${esc(itemName(i))}</h2>
+        <div class="row"><span class="pill">${esc(tierById(i.tier).name)}</span><span class="pill ${isAged(i) ? 'hot' : ''}">Listed ${days === 0 ? 'today' : plural(days, 'day') + ' ago'}</span><span class="small muted mono">${i.id}</span></div>
       </div>
       <div class="panel stack" style="gap:8px">
-        <p class="eyebrow">How we priced it</p>
         <dl class="sum">
-          <dt>Credit paid to the member who traded it</dt><dd>${money(i.paid)}</dd>
-          <dt>ReRack markup</dt><dd>+${money(i.price - i.paid)}</dd>
-          <dt class="total">Your price</dt><dd class="total">${money(i.price)}</dd>
+          <dt>Store price</dt><dd>${money(list)}</dd>
+          ${isAged(i) ? `<dt>Member price (${AGED_DISCOUNT * 100}% off after ${AGED_DAYS} days)</dt><dd>${money(mp)}</dd>` : ''}
+          <dt class="total">Your price</dt><dd class="total">${money(priceFor(i))}</dd>
         </dl>
+        ${!isMember() && isAged(i) ? `<p class="small muted">Members pay ${money(mp)} for this piece.</p>` : ''}
       </div>
-      <p class="small">${i.location === S.user.home ? `Ships free to your address from ${esc(l.name)}.` : `Pickup only at ${esc(l.name)}, ${esc(l.address)} (${esc(l.hours)}). Travel-store items can't be shipped.`}</p>
-      ${inBag ? `<button class="btn ghost block" data-act="removeFromBag" data-id="${i.id}">Remove from bag</button>`
-        : `<button class="btn block" data-act="addToBag" data-id="${i.id}">Add to bag · ${money(i.price)}</button>`}
+      <p class="small">You pick a campus pickup slot at checkout.</p>
+      ${i.status === 'listed' ? `<button class="btn block" data-act="buy" data-id="${i.id}">Buy · ${money(priceFor(i))}</button>` : '<button class="btn block" disabled>Sold</button>'}
     </div>`;
 }
 
-// ----- Bag & checkout -----
-function bagItems() { return S.cart.ids.map(id => S.inventory.find(i => i.id === id)).filter(i => i && i.status === 'available'); }
-function bagView() {
-  const items = bagItems();
-  if (!items.length) return `<h1 class="display" style="font-size:22px">Your bag</h1><div class="notice">Your bag is empty. <button class="btn small" data-act="tab" data-tab="shop">Browse the ${esc(loc().short)} racks</button></div>`;
-  const bagLoc = LOCATIONS[S.cart.location];
-  const ship = S.cart.location === S.user.home;
-  const subtotal = items.reduce((a, i) => a + i.price, 0);
-  const useCredit = S.ui.useCredit !== false;
-  const creditUsed = useCredit ? Math.min(S.user.credit, subtotal) : 0;
-  const charge = Math.round((subtotal - creditUsed) * 100) / 100;
-  return `<h1 class="display" style="font-size:22px">Your bag</h1>
-    ${memberGate()}
-    <div class="panel"><div class="list">${items.map(i => `<div class="li"><div class="thumb">${tile(i)}</div>
-      <div class="grow"><div class="card-title">${esc(i.title)}</div><div class="small muted">${esc(i.brand)} · ${esc(i.size)}</div></div>
-      <div class="stack" style="gap:4px;align-items:flex-end"><span class="tag">${money(i.price)}</span><button class="btn small quiet" data-act="removeFromBag" data-id="${i.id}">Remove</button></div></div>`).join('')}</div></div>
-    <div class="panel stack">
-      <p class="eyebrow">${ship ? 'Shipping' : 'In-store pickup'}</p>
-      ${ship ? `<p>Free shipping to <strong>${esc(S.user.street)}, ${esc(S.user.city)} ${esc(S.user.zip)}</strong> from ${esc(bagLoc.name)}.</p>`
-        : `<p>Pick up at <strong>${esc(bagLoc.name)}</strong>, ${esc(bagLoc.address)}. ${esc(bagLoc.hours)}.</p><p class="small muted">This isn't your home warehouse, so these items can't be shipped.</p>`}
-    </div>
-    <div class="panel stack">
-      <label class="switch"><input type="checkbox" id="useCredit" ${useCredit ? 'checked' : ''} ${S.user.credit <= 0 ? 'disabled' : ''}> Use my store credit (${money(S.user.credit)} available)</label>
-      <dl class="sum">
-        <dt>Subtotal</dt><dd>${money(subtotal)}</dd>
-        <dt>${ship ? 'Shipping' : 'Pickup'}</dt><dd>Free</dd>
-        <dt>Store credit</dt><dd>−${money(creditUsed)}</dd>
-        <dt class="total">${charge > 0 ? `Card ••${esc(S.user.card.last4)}` : 'Due'}</dt><dd class="total">${money(charge)}</dd>
-      </dl>
-      ${charge > 0 && creditUsed > 0 ? `<p class="small muted">Your credit covers ${money(creditUsed)}. The remaining ${money(charge)} goes on your card.</p>` : ''}
-      <button class="btn block" data-act="checkout" ${isMember() ? '' : 'disabled'}>Place order${charge > 0 ? ` · charge ${money(charge)}` : ''}</button>
-    </div>`;
+// ----- Checkout (one item per order, SPEC §6.4) -----
+function maxCreditFor(i) { return isMember() ? round2(Math.min(balance(), priceFor(i))) : 0; }
+function coSummary(price, credit) {
+  const cash = round2(price - credit);
+  return `<dl class="sum">
+    <dt>Price</dt><dd>${money(price)}</dd>
+    ${isMember() ? `<dt>Store credit</dt><dd>−${money(credit)}</dd>` : ''}
+    <dt class="total">Card</dt><dd class="total">${money(cash)}</dd></dl>`;
+}
+function checkoutSheet() {
+  const i = S.items.find(x => x.id === sheet.id);
+  if (!i || i.status !== 'listed') return `<button class="close" data-act="closeSheet" aria-label="Close">✕</button><div class="notice">This item just sold.</div>`;
+  const price = priceFor(i), max = maxCreditFor(i), slots = futureSlots('pickup');
+  return `<button class="close" data-act="closeSheet" aria-label="Close">✕</button>
+    <form id="checkoutForm" class="stack" data-id="${i.id}" novalidate>
+      <h2 class="display" style="font-size:20px">Checkout</h2>
+      <div class="li" style="border:0;padding:0"><div class="thumb">${tile(i)}</div>
+        <div class="grow"><div class="card-title">${esc(itemName(i))}</div><div class="small muted">${esc(i.brand)} · ${esc(i.size)}</div></div>${priceTag(i)}</div>
+      ${isMember()
+        ? `<div class="field"><label for="coCredit">Store credit to use (${money(balance())} available)</label><input id="coCredit" type="number" inputmode="decimal" min="0" max="${max}" step="0.01" value="${max.toFixed(2)}"${max <= 0 ? ' disabled' : ''}></div>
+           <p class="small muted">Credit goes first. Lower it if you'd rather put more on your card.</p>`
+        : `<p class="small muted">Non-members pay by card. ${membership() === 'lapsed' ? 'Renew your membership to spend your store credit.' : 'Members can pay with store credit.'}</p>`}
+      <div id="coSummary">${coSummary(price, max)}</div>
+      ${S.user.card ? `<p class="small">Any card amount goes on card ••${esc(S.user.card.last4)}.</p>` : `<div class="stack">${cardFields('co')}<p class="small muted">Not needed if credit covers the whole price.</p></div>`}
+      <div class="field"><label for="coSlot">Campus pickup slot</label>${slots.length ? `<select id="coSlot">${slots.map(s => `<option value="${s.id}">${esc(fmtSlot(s))}</option>`).join('')}</select>` : '<p class="err">No pickup slots are open right now.</p>'}</div>
+      <p id="coErr" class="err" hidden></p>
+      <button class="btn block" type="submit"${slots.length ? '' : ' disabled'}>Place order</button>
+    </form>`;
+}
+function readCredit(i) {
+  const el = document.getElementById('coCredit');
+  if (!el || el.disabled) return { credit: 0 };
+  const raw = el.value.trim(), v = raw === '' ? 0 : Number(raw), max = maxCreditFor(i);
+  if (!Number.isFinite(v) || v < 0) return { err: 'Enter a credit amount of $0 or more.' };
+  if (round2(v) > max) return { err: `You can use up to ${money(max)} of credit on this item.` };
+  return { credit: round2(v) };
+}
+function placeOrder(form) {
+  const i = S.items.find(x => x.id === form.dataset.id);
+  if (!i || i.status !== 'listed') return showErr('coErr', 'This item just sold.');
+  const price = priceFor(i), r = readCredit(i);
+  if (r.err) return showErr('coErr', r.err);
+  const cash = round2(price - r.credit);
+  let card = S.user.card;
+  if (cash > 0 && !card) { const c = readCard('co'); if (c.err) return showErr('coErr', c.err); card = { last4: c.last4 }; S.user.card = card; }
+  const slot = document.getElementById('coSlot');
+  if (!slot || !slot.value) return showErr('coErr', 'Pick a pickup slot.');
+  const o = { id: uid('OR'), date: nowIso(), itemId: i.id, price, creditUsed: r.credit, cash, cardLast4: cash > 0 ? card.last4 : null, slotId: slot.value, status: 'paid', pickedUpAt: null };
+  i.status = 'sold';
+  if (o.creditUsed > 0) S.ledger.push({ id: uid('CR'), date: o.date, amt: -o.creditUsed, type: 'spent', itemId: i.id, orderId: o.id, note: `Order ${o.id} · ${itemName(i)}` });
+  S.orders.push(o); save();
+  sheet = { type: 'order', id: o.id }; S.ui.tab = 'orders'; render();
 }
 function orderSheet() {
-  const o = S.orders.find(x => x.id === sheet.id);
-  const l = LOCATIONS[o.location];
+  const o = S.orders.find(x => x.id === sheet.id), i = S.items.find(x => x.id === o.itemId);
   return `<button class="close" data-act="closeSheet" aria-label="Close">✕</button>
     <div class="stack">
       <p class="eyebrow">Order ${o.id}</p>
-      <h2 class="display" style="font-size:22px">${o.fulfillment === 'ship' ? 'Order placed. We\'re packing it.' : 'Order placed. Pick it up in store.'}</h2>
-      ${o.fulfillment === 'ship' ? `<p>It ships from ${esc(l.name)} to ${esc(o.address)}, usually within 2 business days.</p>`
-        : `<div class="ticket"><span class="eyebrow">Pickup code</span><span class="code">${o.code}</span><span class="small">${esc(l.name)} · ${esc(l.address)}</span><span class="small muted">${esc(l.hours)}. Ready in 1–2 days, held for 7 days.</span></div>`}
-      <dl class="sum"><dt>Items</dt><dd>${o.items.length}</dd><dt>Paid with credit</dt><dd>${money(o.creditUsed)}</dd><dt>Charged to card</dt><dd>${money(o.charge)}</dd></dl>
+      <h2 class="display" style="font-size:22px">${o.status === 'paid' ? 'Paid. Pick it up on campus.' : 'Picked up.'}</h2>
+      <div class="ticket"><span class="eyebrow">Show this at pickup</span><span class="code">${o.id}</span><span class="small">${esc(itemName(i))}</span><span class="small muted">${esc(fmtSlot(slotById(o.slotId)))}</span></div>
+      <dl class="sum"><dt>Price</dt><dd>${money(o.price)}</dd><dt>Paid with credit</dt><dd>${money(o.creditUsed)}</dd><dt>Charged to card</dt><dd>${money(o.cash)}</dd></dl>
       <button class="btn block" data-act="closeSheet">Done</button>
     </div>`;
 }
 
-// ----- Locations -----
-function locationsSheet() {
-  return `<button class="close" data-act="closeSheet" aria-label="Close">✕</button>
-    <div class="stack">
-      <h2 class="display" style="font-size:20px">Shop a warehouse</h2>
-      <p class="small muted">Your credit works everywhere. Only your home warehouse ships to you; other warehouses are pickup in person.</p>
-      ${locationButtons()}
-      ${S.cart.ids.length && sheet.pending ? `<div class="notice warn stack" style="gap:8px">Your bag has items from ${esc(LOCATIONS[S.cart.location].short)}. Switching warehouses empties it.
-        <div class="row"><button class="btn small" data-act="setLoc" data-loc="${sheet.pending}" data-force="1">Empty bag and switch</button><button class="btn small quiet" data-act="cancelSwitch">Keep my bag</button></div></div>` : ''}
-    </div>`;
-}
-function locationButtons() {
-  return Object.values(LOCATIONS).map(l => {
-    const home = l.id === S.user.home;
-    const count = S.inventory.filter(i => i.location === l.id && i.status === 'available').length;
-    return `<button class="loc" data-act="setLoc" data-loc="${l.id}" aria-pressed="${S.location === l.id}">
-      <span class="dot ${home ? '' : 'travel'}" style="margin-top:7px"></span>
-      <span class="grow"><strong>${esc(l.name)}</strong><br><span class="small muted">${esc(l.address)}</span><br>
-      <span class="small">${home ? 'Home · ships to you' : 'Travel · pickup only'} · ${count} items</span></span></button>`;
-  }).join('');
+// ----- Orders -----
+function ordersView() {
+  const list = S.orders.slice().reverse();
+  return `<h1 class="display" style="font-size:22px">Orders</h1>
+    ${list.length ? `<div class="panel"><div class="list">${list.map(o => {
+      const i = S.items.find(x => x.id === o.itemId);
+      return `<button class="li" style="background:none;border-left:0;border-right:0;border-top:0;text-align:left;cursor:pointer;width:100%" data-act="openOrder" data-id="${o.id}">
+        <div class="thumb">${tile(i)}</div>
+        <div class="grow"><div class="card-title">${esc(itemName(i))}</div><div class="small muted">${esc(fmtSlot(slotById(o.slotId)))}</div>
+          <span class="pill ${o.status === 'paid' ? 'warn' : 'ok'}">${o.status === 'paid' ? 'Ready for pickup' : 'Picked up ' + fmtDate(o.pickedUpAt)}</span></div>
+        <span class="mono">${money(o.price)}</span></button>`;
+    }).join('')}</div></div>`
+      : `<div class="notice">No orders yet. <button class="btn small" data-act="tab" data-tab="shop">Browse the store</button></div>`}`;
 }
 
-// ----- Trade in -----
-function tradeView() {
-  const active = S.tradeIns.slice().sort((a, b) => b.created.localeCompare(a.created));
-  return `<h1 class="display" style="font-size:22px">Trade in</h1>
-    ${memberGate()}
-    <ol class="steps"><li>Photograph each piece</li><li>We send an estimate</li><li>Ship or drop off the box</li><li>Credit lands after inspection</li></ol>
-    ${isMember() ? boxBuilder() : ''}
-    ${active.length ? `<h2 class="section-title">Your trade-ins</h2>${active.map(tradeCard).join('')}` : ''}`;
+// ----- Drop off (members, SPEC §6.2) -----
+function dropoffView() {
+  const head = `<h1 class="display" style="font-size:22px">Drop off</h1>
+    <ol class="steps"><li>Pick a campus drop-off slot</li><li>Photo each piece and see your estimate</li><li>Bring the bag to your slot</li><li>We grade it; credit lands in a few days</li></ol>`;
+  if (!isMember()) {
+    return `${head}<div class="notice ${membership() === 'lapsed' ? 'warn' : ''}">${membership() === 'lapsed'
+      ? `Your membership has lapsed. Your ${money(balance())} credit is safe, but you can't drop off or spend it until you renew.`
+      : 'Drop-offs are for members. Join to turn clothes you don\'t wear into store credit.'}</div>${membershipOffer()}${myDropOffs()}`;
+  }
+  return head + dropForm() + myDropOffs();
 }
-function boxBuilder() {
+const allBrands = () => S.tiers.flatMap(t => t.brands).sort((a, b) => a.localeCompare(b));
+function dropForm() {
+  const slots = futureSlots('dropoff');
+  const sel = slots.some(s => s.id === S.ui.doSlot) ? S.ui.doSlot : (slots[0] && slots[0].id);
+  const est = draftBag.reduce((a, it) => a + (it.estTier ? creditFor(tierById(it.estTier)) : 0), 0);
   return `<div class="panel stack">
-    <div class="row spread"><h2 class="section-title">Your box</h2><span class="pill">${draftBox.length} item${draftBox.length === 1 ? '' : 's'}</span></div>
-    ${draftBox.length ? `<div class="list">${draftBox.map((it, idx) => `<div class="li"><div class="thumb">${tile(it)}</div>
-      <div class="grow"><div class="card-title">${esc(it.brand)} ${esc(CATS[it.cat].label.toLowerCase())}</div><div class="small muted">Size ${esc(it.size)} · ${CONDS[it.cond].label}</div></div>
+    <div class="field"><label for="doSlot">Drop-off slot</label>${slots.length ? `<select id="doSlot">${slots.map(s => `<option value="${s.id}"${s.id === sel ? ' selected' : ''}>${esc(fmtSlot(s))}</option>`).join('')}</select>` : '<p class="err">No drop-off slots are open right now.</p>'}</div>
+    <hr class="stitch">
+    <div class="row spread"><h2 class="section-title">Your bag</h2><span class="pill">${plural(draftBag.length, 'item')}</span></div>
+    ${draftBag.length ? `<div class="list">${draftBag.map((it, idx) => `<div class="li"><div class="thumb">${tile(it)}</div>
+      <div class="grow"><div class="card-title">${esc(itemName(it))}</div><div class="small muted">${esc(it.brand)} · Size ${esc(it.size)}</div>
+        ${it.estTier ? `<span class="small">Est. ${money(creditFor(tierById(it.estTier)))}</span>` : '<span class="small" style="color:var(--bad)">Not likely accepted</span>'}</div>
       <button class="btn small quiet" data-act="removeDraft" data-idx="${idx}">Remove</button></div>`).join('')}</div>
-      <button class="btn block" data-act="submitBox">Send ${draftBox.length} item${draftBox.length === 1 ? '' : 's'} for an estimate</button><hr class="stitch">` : ''}
+      <dl class="sum"><dt class="total">Estimated credit</dt><dd class="total">${money(est)}</dd></dl>
+      <p class="small muted">Estimates come from each brand's tier. Final credit is set when we grade each piece by hand, and rejected pieces are donated.</p>
+      <button class="btn block" data-act="submitDrop"${slots.length ? '' : ' disabled'}>Submit ${plural(draftBag.length, 'item')}</button><hr class="stitch">` : ''}
     <form id="itemForm" class="stack" novalidate>
-      <p class="eyebrow">${draftBox.length ? 'Add another piece' : 'Add your first piece'}</p>
+      <p class="eyebrow">${draftBag.length ? 'Add another piece' : 'Add your first piece'}</p>
       <div class="photos" id="photoPreview">${photoPreview()}</div>
-      <div class="field"><label for="tiCat">What is it?</label><select id="tiCat">${opts(CATS, 'jeans')}</select></div>
+      <div class="field"><label for="tiBrand">Brand</label><input id="tiBrand" list="brandList" placeholder="Check the tag" autocomplete="off"><datalist id="brandList">${allBrands().map(b => `<option value="${esc(b)}">`).join('')}</datalist></div>
       <div class="grid2">
-        <div class="field"><label for="tiBrand">Brand</label><input id="tiBrand" placeholder="e.g. Levi's"></div>
-        <div class="field"><label for="tiSize">Size</label><input id="tiSize" placeholder="e.g. M, 28, 8.5"></div>
+        <div class="field"><label for="tiCat">Category</label><select id="tiCat">${optList(catPairs(), 'tops')}</select></div>
+        <div class="field"><label for="tiSize">Size</label><select id="tiSize"><option value="">Choose</option>${optList(sizePairs())}</select></div>
       </div>
-      <div class="field"><label for="tiTier">Brand type</label><select id="tiTier">${opts(TIERS, 'mall')}</select></div>
-      <div class="field"><label for="tiCond">Condition</label><select id="tiCond">${opts(CONDS, 'likenew')}</select></div>
-      <div class="field"><label for="tiNote">Anything we should know? (optional)</label><input id="tiNote" placeholder="Worn twice, small mark on hem"></div>
-      <div id="ballpark">${ballparkHTML('jeans', 'mall', 'likenew')}</div>
+      <div class="field"><label for="tiTitle">What is it? (optional)</label><input id="tiTitle" placeholder="e.g. Wide-leg jeans"></div>
+      <div id="estimate">${estimateHTML('')}</div>
       <p id="tiErr" class="err" hidden></p>
-      <button class="btn ghost block" type="submit">Add to box</button>
+      <button class="btn ghost block" type="submit">Add to bag</button>
     </form>
   </div>`;
 }
 function photoPreview() {
-  return pendingPhotos.map((p, i) => `<div class="ph-wrap"><img src="${p}" alt="Photo ${i + 1}"><button type="button" data-act="removePhoto" data-idx="${i}" aria-label="Remove photo">✕</button></div>`).join('')
-    + (pendingPhotos.length < 4 ? `<label class="photo-add">${pendingPhotos.length ? 'Add angle' : 'Take or add photos'}<input id="tiPhotos" type="file" accept="image/*" capture="environment" multiple></label>` : '');
+  return pendingPhoto
+    ? `<div class="ph-wrap"><img src="${pendingPhoto}" alt="Item photo"><button type="button" data-act="removePhoto" aria-label="Remove photo">✕</button></div>`
+    : `<label class="photo-add">Take or add a photo<input id="tiPhoto" type="file" accept="image/*" capture="environment"></label>`;
 }
-function ballparkHTML(cat, tier, cond) {
-  const lo = valuate(cat, tier, cond, 'classic'), hi = valuate(cat, tier, cond, 'hot'), mid = valuate(cat, tier, cond, 'current');
-  return `<div class="notice ${cond === 'fair' ? 'warn' : 'thread'}">
-    <strong>Ballpark: ${money(lo.payout)} – ${money(hi.payout)} credit</strong><br>
-    <span class="small">Our team sets the final number from your photos, based on how on-trend it is and its quality. Typical buy-back stores pay about ${money(mid.typical)}.</span>
-    ${cond === 'fair' ? '<br><span class="small">Pieces with visible wear are usually declined.</span>' : ''}</div>`;
+function estimateHTML(brand) {
+  if (!brand.trim()) return '<div class="notice small">Enter the brand to see an estimated credit.</div>';
+  const t = tierForBrand(brand);
+  return t
+    ? `<div class="notice thread"><strong>Estimated credit: ${money(creditFor(t))}</strong><br><span class="small">${esc(t.name)} brand · sells for ${money(t.listPrice)} in the store.</span></div>`
+    : `<div class="notice warn"><strong>Not likely accepted.</strong><br><span class="small">${esc(brand)} isn't on our brand list, so this piece will probably be rejected and donated.</span></div>`;
 }
-function tradeCard(t) {
-  const offered = t.items.filter(i => i.status === 'offered' || i.status === 'accepted');
-  const total = offered.reduce((a, i) => a + i.payout, 0);
-  const statusPill = { review: ['warn', 'Waiting for estimate'], offer: ['hot', 'Estimate ready'], inbound: ['warn', t.method === 'ship' ? 'Ship your box' : 'Drop off your box'], complete: ['ok', 'Credit issued'], declined: ['', 'Offer declined'], closed: ['bad', 'Not accepted'] }[t.status];
-  const lines = t.items.map(i => `<div class="li"><div class="thumb">${tile(i)}</div>
-    <div class="grow"><div class="card-title">${esc(i.brand)} ${esc(CATS[i.cat].label.toLowerCase())}</div>
-      <div class="small muted">Size ${esc(i.size)} · ${CONDS[i.cond].label}${i.trend ? ' · ' + TRENDS[i.trend].label : ''}</div>
-      ${i.status === 'denied' ? `<div class="small" style="color:var(--bad)">Declined: ${esc(i.reason)}</div>` : ''}</div>
-    ${i.status === 'pending' ? '<span class="pill">Reviewing</span>' : i.status === 'denied' ? '<span class="pill bad">Declined</span>' : `<span class="tag">${money(i.payout)}</span>`}</div>`).join('');
-  const home = LOCATIONS[S.user.home];
-  let action = '';
-  if (t.status === 'review') action = `<p class="small muted">Our team is reviewing your photos. Estimates usually come back within 24 hours.</p>`;
-  if (t.status === 'offer') action = `<dl class="sum"><dt class="total">Estimated credit</dt><dd class="total">${money(total)}</dd></dl>
-    <p class="small muted">Final credit is confirmed when we inspect the box. Anything that doesn't match the photos may be declined.</p>
-    <div class="grid2"><button class="btn" data-act="acceptOffer" data-id="${t.id}" data-method="ship">Accept &amp; ship it</button><button class="btn ghost" data-act="acceptOffer" data-id="${t.id}" data-method="dropoff">Accept &amp; drop off</button></div>
-    <button class="btn quiet small" data-act="declineOffer" data-id="${t.id}">No thanks</button>`;
-  if (t.status === 'inbound' && t.method === 'ship') action = `<div class="ticket"><span class="eyebrow">Prepaid shipping label</span>
-      <span><strong>To:</strong> ReRack ${esc(home.name)}, ${esc(home.address)}</span>
-      <span><strong>From:</strong> ${esc(S.user.name)}, ${esc(S.user.street)}, ${esc(S.user.city)} ${esc(S.user.zip)}</span>
-      <span class="mono small">Tracking ${esc(t.tracking)}</span></div>
-    <p class="small">Pack only the ${offered.length} accepted item${offered.length === 1 ? '' : 's'} and write <strong class="mono">${t.id}</strong> inside the box. The label was emailed to ${esc(S.user.email)}.</p>
-    ${t.shipped ? `<span class="pill ok">Marked shipped ${fmtDate(t.shipped)}</span>` : `<button class="btn small ghost" data-act="markShipped" data-id="${t.id}">I've shipped it</button>`}`;
-  if (t.status === 'inbound' && t.method === 'dropoff') action = `<div class="ticket"><span class="eyebrow">Drop-off code</span><span class="code">${esc(t.dropCode)}</span>
-      <span class="small">${esc(home.name)} · ${esc(home.address)}</span><span class="small muted">${esc(home.hours)}</span></div>
-    <p class="small">Bring the ${offered.length} accepted item${offered.length === 1 ? '' : 's'} in a box or bag and show this code at the counter.</p>`;
-  if (t.status === 'complete') {
-    const earned = t.items.filter(i => i.status === 'accepted').reduce((a, i) => a + i.payout, 0);
-    action = `<div class="notice ok"><strong>${money(earned)} added to your credit.</strong> Accepted pieces are now on the ${esc(home.short)} racks.</div>
-      ${t.items.some(i => i.status === 'denied' && i.inspected) ? '<p class="small muted">Pieces declined at inspection are held at the warehouse for 30 days for pickup, then donated.</p>' : ''}`;
-  }
-  if (t.status === 'closed') action = `<p class="small muted">None of these pieces fit what's selling right now. Nothing to send in.</p>`;
-  return `<div class="panel stack">
-    <div class="row spread"><span><strong class="mono">${t.id}</strong> <span class="small muted">· ${fmtDate(t.created)}</span></span><span class="pill ${statusPill[0]}">${statusPill[1]}</span></div>
-    <div class="list">${lines}</div>${action}</div>`;
+function addItem() {
+  const v = id => document.getElementById(id).value.trim();
+  if (!pendingPhoto) return showErr('tiErr', 'Add a photo of the piece.');
+  if (!v('tiBrand')) return showErr('tiErr', 'Add the brand (check the tag).');
+  if (!v('tiSize')) return showErr('tiErr', 'Choose the size.');
+  const t = tierForBrand(v('tiBrand'));
+  draftBag.push({ id: uid('IT'), photo: pendingPhoto, brand: v('tiBrand'), cat: v('tiCat'), size: v('tiSize'), title: v('tiTitle') || null, estTier: t ? t.id : null });
+  pendingPhoto = null; render();
+}
+function myDropOffs() {
+  const list = S.dropOffs.slice().sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
+  if (!list.length) return '';
+  return `<h2 class="section-title">Your drop-offs</h2>${list.map(d => {
+    const items = S.items.filter(i => i.dropOffId === d.id);
+    const earned = items.reduce((a, i) => a + (i.creditAwarded || 0), 0);
+    return `<div class="panel stack">
+      <div class="row spread"><span><strong class="mono">${d.id}</strong> <span class="small muted">· ${fmtDate(d.submittedAt)}</span></span>
+        <span class="pill ${d.status === 'graded' ? 'ok' : 'warn'}">${d.status === 'graded' ? 'Graded' : 'Waiting for grading'}</span></div>
+      <p class="small muted">${esc(fmtSlot(slotById(d.slotId)))}</p>
+      <div class="list">${items.map(i => `<div class="li"><div class="thumb">${tile(i)}</div>
+        <div class="grow"><div class="card-title">${esc(itemName(i))}</div><div class="small muted">${esc(i.brand)} · Size ${esc(i.size)}</div>
+          ${i.status === 'rejected' ? `<div class="small" style="color:var(--bad)">Rejected and donated${i.rejectReason ? ': ' + esc(i.rejectReason) : ''}</div>` : ''}
+          ${['listed', 'sold', 'pickedup'].includes(i.status) ? `<div class="small">Accepted · ${esc(tierById(i.tier).name)}</div>` : ''}</div>
+        ${i.status === 'submitted' ? `<span class="pill">${i.estTier ? 'Est. ' + money(creditFor(tierById(i.estTier))) : 'Grading'}</span>`
+          : i.status === 'rejected' ? '<span class="pill bad">Rejected</span>' : `<span class="tag">+${money(i.creditAwarded)}</span>`}</div>`).join('')}</div>
+      ${d.status === 'graded' ? `<div class="notice ok"><strong>${money(earned)} credit earned.</strong> Accepted pieces are listed in the store.</div>` : ''}
+    </div>`;
+  }).join('')}`;
 }
 
-// ----- Wallet -----
-function walletView() {
+// ----- Credit -----
+function creditView() {
+  if (membership() === 'none') return `<h1 class="display" style="font-size:22px">Credit</h1>
+    <div class="notice">Store credit is for members. Drop off clothes and you'll earn 60% of each accepted piece's store price.</div>${membershipOffer()}`;
   return `<h1 class="display" style="font-size:22px">Credit</h1>
-    <div class="credit-hero"><span class="eyebrow" style="color:inherit">Store credit</span><span class="num">${money(S.user.credit)}</span>
-      <span class="small">Spend it at any ReRack warehouse. If an order costs more, the difference goes on your card.</span></div>
+    <div class="credit-hero"><span class="eyebrow" style="color:inherit">Store credit</span><span class="num">${money(balance())}</span>
+      <span class="small">${membership() === 'lapsed' ? 'Frozen until you renew your membership.' : 'Applied first at checkout. Anything over goes on your card.'} Credit can only be spent in the ReRack store and can't be cashed out.</span></div>
+    ${membership() === 'lapsed' ? `<button class="btn block" data-act="tab" data-tab="account">Renew membership</button>` : ''}
     <div class="panel stack"><h2 class="section-title">History</h2>
       ${S.ledger.length ? `<div class="list">${S.ledger.slice().reverse().map(e => `<div class="li"><div class="grow"><div>${esc(e.note)}</div><div class="small muted">${fmtDate(e.date)}</div></div>
         <span class="mono" style="color:${e.amt >= 0 ? 'var(--ok)' : 'var(--ink)'}">${e.amt >= 0 ? '+' : '−'}${money(Math.abs(e.amt))}</span></div>`).join('')}</div>`
-        : '<p class="muted small">No credit yet. Send in your first box from the Trade in tab.</p>'}
-    </div>
-    <div class="panel stack"><h2 class="section-title">Orders</h2>
-      ${S.orders.length ? `<div class="list">${S.orders.slice().reverse().map(o => `<button class="li" style="background:none;border-left:0;border-right:0;border-top:0;text-align:left;cursor:pointer;width:100%" data-act="openOrder" data-id="${o.id}">
-        <div class="grow"><div><strong class="mono">${o.id}</strong> · ${o.items.length} item${o.items.length === 1 ? '' : 's'}</div>
-        <div class="small muted">${fmtDate(o.date)} · ${o.fulfillment === 'ship' ? 'Shipping' : 'Pickup at ' + esc(LOCATIONS[o.location].short) + ' · code ' + o.code}</div></div>
-        <span class="mono">${money(o.creditUsed + o.charge)}</span></button>`).join('')}</div>`
-        : '<p class="muted small">No orders yet.</p>'}
+        : '<p class="muted small">No credit yet. Submit your first bag from the Drop off tab.</p>'}
     </div>`;
 }
 
 // ----- Account -----
 function accountView() {
   const m = S.user.membership;
-  const home = LOCATIONS[S.user.home];
+  const pill = { active: ['ok', 'Active'], lapsed: ['warn', 'Lapsed'], none: ['', 'Not a member'] }[m.status];
+  let body;
+  if (m.status === 'active') {
+    body = `<dl class="sum"><dt>Plan</dt><dd>${money(MEMBERSHIP_PRICE)}/mo</dd><dt>Member since</dt><dd>${fmtDate(m.since)}</dd><dt>Next charge</dt><dd>${fmtDate(m.renews)}</dd><dt>Card</dt><dd>••${esc(S.user.card.last4)}</dd></dl>
+      ${confirming === 'cancel'
+        ? `<div class="notice warn stack" style="gap:8px">Cancel your membership? You'll keep your ${money(balance())} credit, but can't drop off or spend it until you renew.<div class="row"><button class="btn small danger" data-act="cancelMembership">Cancel membership</button><button class="btn small quiet" data-act="unconfirm">Keep it</button></div></div>`
+        : `<button class="btn quiet small" data-act="confirm" data-key="cancel">Cancel membership</button>`}`;
+  } else {
+    body = m.status === 'lapsed' ? `<p class="small">Your ${money(balance())} credit is kept but frozen until you renew.</p>` : '<p class="small">You can shop at non-member prices. Join to drop off clothes for credit.</p>';
+  }
   return `<h1 class="display" style="font-size:22px">Account</h1>
-    <div class="panel stack" style="gap:6px"><strong>${esc(S.user.name)}</strong><span class="small muted">${esc(S.user.email)}</span>
-      <span class="small">${esc(S.user.street)}, ${esc(S.user.city)} ${esc(S.user.zip)}</span>
-      <span class="small">Home warehouse: <strong>${esc(home.name)}</strong> (${esc(home.area)})</span></div>
+    <div class="panel stack" style="gap:6px"><strong>${esc(S.user.name)}</strong><span class="small muted">${esc(S.user.email)}</span></div>
+    <div class="panel stack"><div class="row spread"><h2 class="section-title">Membership</h2><span class="pill ${pill[0]}">${pill[1]}</span></div>${body}</div>
+    ${m.status === 'active' ? '' : membershipOffer()}
     <div class="panel stack">
-      <div class="row spread"><h2 class="section-title">Membership</h2><span class="pill ${m.status === 'active' ? 'ok' : 'warn'}">${m.status === 'active' ? 'Active' : 'Paused'}</span></div>
-      <dl class="sum"><dt>Plan</dt><dd>${money(MEMBERSHIP_PRICE)}/mo</dd><dt>Member since</dt><dd>${fmtDate(m.since)}</dd>
-        ${m.status === 'active' ? `<dt>Next charge</dt><dd>${fmtDate(m.renews)}</dd>` : ''}<dt>Card</dt><dd>••${esc(S.user.card.last4)}</dd></dl>
-      ${m.status === 'active'
-        ? (confirming === 'cancel' ? `<div class="notice warn stack" style="gap:8px">Pause your membership? You'll keep your credit, but can't trade in or check out until you resume.<div class="row"><button class="btn small danger" data-act="cancelMembership">Pause membership</button><button class="btn small quiet" data-act="unconfirm">Keep it</button></div></div>`
-          : `<button class="btn quiet small" data-act="confirm" data-key="cancel">Pause membership</button>`)
-        : `<button class="btn small" data-act="resume">Resume for ${money(MEMBERSHIP_PRICE)}/mo</button>`}
-    </div>
-    <div class="stack"><h2 class="section-title">Shopping location</h2><p class="small muted">Traveling? Switch warehouses to shop their racks with your credit. Pickup only outside your home warehouse.</p>${locationButtons()}</div>
-    <div class="panel stack">
-      <label class="switch"><input type="checkbox" id="staffToggle" ${S.staff ? 'checked' : ''}> Warehouse staff mode</label>
-      <p class="small muted">Shows the Warehouse tab, where staff write estimates, inspect boxes, and post accepted pieces. Use it to try both sides of a trade-in in this prototype.</p>
+      <label class="switch"><input type="checkbox" id="adminToggle" ${S.admin ? 'checked' : ''}> Admin mode</label>
+      <p class="small muted">Shows the Admin tab, where we grade drop-offs, hand off pickups, and edit tiers and slots. Use it to try both sides of the swap in this prototype.</p>
     </div>
     ${confirming === 'reset' ? `<div class="notice bad stack" style="gap:8px">Sign out and erase everything saved on this device?<div class="row"><button class="btn small danger" data-act="reset">Erase and sign out</button><button class="btn small quiet" data-act="unconfirm">Cancel</button></div></div>`
       : `<button class="btn danger block" data-act="confirm" data-key="reset">Sign out and reset</button>`}`;
 }
+function startMembership() {
+  let card = S.user.card;
+  if (!card) { const c = readCard('mb'); if (c.err) return showErr('mbErr', c.err); card = { last4: c.last4 }; }
+  S.user.card = card;
+  const m = S.user.membership;
+  m.status = 'active'; m.since = m.since || nowIso(); m.renews = daysAhead(30);
+  save(); render(); toast(`You're a member. ${money(MEMBERSHIP_PRICE)} charged to ••${card.last4}.`);
+}
 
-// ----- Warehouse (staff) -----
-function staffView() {
-  const review = S.tradeIns.filter(t => t.status === 'review');
-  const inbound = S.tradeIns.filter(t => t.status === 'inbound');
-  const listed = S.inventory.filter(i => i.fromTrade).slice(-8).reverse();
-  const tab = S.ui.staffTab;
-  return `<h1 class="display" style="font-size:22px">Warehouse · ${esc(LOCATIONS[S.user.home].short)}</h1>
-    <div class="chips" role="group" aria-label="Queue">
-      <button data-act="staffTab" data-st="review" aria-pressed="${tab === 'review'}">Needs estimate (${review.length})</button>
-      <button data-act="staffTab" data-st="inbound" aria-pressed="${tab === 'inbound'}">Arriving (${inbound.length})</button>
-      <button data-act="staffTab" data-st="listed" aria-pressed="${tab === 'listed'}">Posted from trade-ins</button>
-    </div>
-    ${tab === 'review' ? (review.length ? review.map(staffReview).join('') : '<div class="notice">No trade-ins waiting for an estimate.</div>') : ''}
-    ${tab === 'inbound' ? (inbound.length ? inbound.map(staffInbound).join('') : '<div class="notice">No boxes on the way.</div>') : ''}
-    ${tab === 'listed' ? (listed.length ? `<div class="grid">${listed.map(card).join('')}</div>` : '<div class="notice">Pieces you accept at inspection are posted here and on the shop automatically.</div>') : ''}`;
+// ----- Admin (SPEC §6.3, §8) -----
+function adminView() {
+  const queue = S.dropOffs.filter(d => S.items.some(i => i.dropOffId === d.id && i.status === 'submitted')).sort((a, b) => a.submittedAt.localeCompare(b.submittedAt));
+  const pickups = S.orders.filter(o => o.status === 'paid');
+  const tab = S.ui.adminTab;
+  const tabs = [['grading', `Grading (${S.items.filter(i => i.status === 'submitted').length})`], ['pickups', `Pickups (${pickups.length})`], ['listed', 'Listed'], ['tiers', 'Tiers'], ['slots', 'Slots'], ['metrics', 'Metrics']];
+  const views = {
+    grading: () => queue.length ? queue.map(gradingCard).join('') : '<div class="notice">Nothing waiting to be graded.</div>',
+    pickups: () => pickups.length ? pickupsList(pickups) : '<div class="notice">No orders waiting for pickup.</div>',
+    listed: listedList, tiers: tiersForm, slots: slotsAdmin, metrics: metricsTable,
+  };
+  return `<h1 class="display" style="font-size:22px">Admin</h1>
+    <div class="chips" role="group" aria-label="Admin section">${tabs.map(([k, l]) => `<button data-act="adminTab" data-at="${k}" aria-pressed="${tab === k}">${l}</button>`).join('')}</div>
+    ${views[tab]()}`;
 }
-function staffReview(t) {
-  return `<div class="panel stack" data-staff="${t.id}">
-    <div class="row spread"><strong class="mono">${t.id}</strong><span class="small muted">${esc(S.user.name)} · ${fmtDate(t.created)}</span></div>
-    ${t.items.map((i, idx) => {
-      const trend = 'current', flag = suggestDenial(i.cond, trend);
-      return `<div class="stack" style="gap:8px;border-top:1px solid var(--line);padding-top:12px">
-        <div class="row" style="align-items:flex-start;flex-wrap:nowrap"><div class="thumb">${tile(i)}</div>
-          <div class="grow" style="min-width:0"><div class="card-title">${esc(i.brand)} ${esc(CATS[i.cat].label.toLowerCase())}</div>
-          <div class="small muted">Size ${esc(i.size)} · ${TIERS[i.tier].label.split(' (')[0]} brand${i.note ? ' · “' + esc(i.note) + '”' : ''}</div>
-          ${i.photos.length > 1 ? `<div class="photos" style="margin-top:6px">${i.photos.slice(1).map(p => `<img src="${p}" alt="" style="width:40px;height:48px">`).join('')}</div>` : ''}</div></div>
-        <div class="grid2">
-          <div class="field"><label for="tr-${t.id}-${idx}">Trend</label><select id="tr-${t.id}-${idx}" data-recalc>${opts(TRENDS, trend)}</select></div>
-          <div class="field"><label for="co-${t.id}-${idx}">Condition</label><select id="co-${t.id}-${idx}" data-recalc>${opts(CONDS, i.cond)}</select></div>
-        </div>
-        <div class="field"><label for="dn-${t.id}-${idx}">Decision</label><select id="dn-${t.id}-${idx}" data-recalc><option value="">Make an offer</option>${DENY_REASONS.map(r => `<option${r === flag ? ' selected' : ''}>Decline: ${esc(r)}</option>`).join('')}</select></div>
-        <div id="pv-${t.id}-${idx}">${staffPreview(i, trend, i.cond, flag)}</div>
-      </div>`;
-    }).join('')}
-    <button class="btn block" data-act="sendEstimate" data-id="${t.id}">Send estimate to member</button>
-  </div>`;
-}
-function staffPreview(i, trend, cond, denied) {
-  if (denied) return `<span class="pill bad">Declining</span>`;
-  const v = valuate(i.cat, i.tier, cond, trend);
-  return `<span class="small">Offer <strong class="mono">${money(v.payout)}</strong> credit · posts at <span class="tag">${money(v.price)}</span></span>`;
-}
-function staffInbound(t) {
+function gradingCard(d) {
+  const items = S.items.filter(i => i.dropOffId === d.id);
   return `<div class="panel stack">
-    <div class="row spread"><strong class="mono">${t.id}</strong><span class="pill">${t.method === 'ship' ? (t.shipped ? 'Shipped ' + fmtDate(t.shipped) : 'Label sent') : 'Drop-off · ' + esc(t.dropCode)}</span></div>
-    ${t.items.filter(i => i.status === 'offered').map(i => {
-      const idx = t.items.indexOf(i);
-      return `<div class="li"><div class="thumb">${tile(i)}</div><div class="grow"><div class="card-title">${esc(i.brand)} ${esc(CATS[i.cat].label.toLowerCase())}</div>
-        <div class="small muted">Offered ${money(i.payout)}</div>
-        <select id="in-${t.id}-${idx}" aria-label="Inspection result" style="margin-top:6px;width:100%;border:1px solid var(--line);border-radius:8px;padding:6px;background:var(--bg)">
-          <option value="">Accept · pay ${money(i.payout)}</option>${DENY_REASONS.map(r => `<option>Decline: ${esc(r)}</option>`).join('')}</select></div></div>`;
-    }).join('')}
-    <button class="btn block" data-act="finishInspection" data-id="${t.id}">Box received · finish inspection &amp; issue credit</button>
+    <div class="row spread"><strong class="mono">${d.id}</strong><span class="small muted">${esc(S.user.name)} · submitted ${fmtDate(d.submittedAt)}</span></div>
+    <p class="small muted">${esc(fmtSlot(slotById(d.slotId)))}</p>
+    ${items.map(i => i.status !== 'submitted'
+      ? `<div class="li"><div class="thumb">${tile(i)}</div><div class="grow"><div class="card-title">${esc(itemName(i))}</div></div>${i.status === 'rejected' ? '<span class="pill bad">Rejected</span>' : `<span class="pill ok">Accepted · +${money(i.creditAwarded)}</span>`}</div>`
+      : `<div class="stack" style="gap:8px;border-top:1px solid var(--line);padding-top:12px">
+        <div class="row" style="align-items:flex-start;flex-wrap:nowrap"><div class="thumb">${tile(i)}</div>
+          <div class="grow" style="min-width:0"><div class="card-title">${esc(itemName(i))}</div>
+            <div class="small muted">${esc(i.brand)} · ${esc(CATS[i.cat].label)} · Size ${esc(i.size)}</div>
+            <div class="small">${i.estTier ? 'Brand list: ' + esc(tierById(i.estTier).name) : '<span style="color:var(--bad)">Brand isn\'t on any tier</span>'}</div></div></div>
+        <div class="field"><label for="gt-${i.id}">Tier</label><select id="gt-${i.id}"><option value="">Choose a tier</option>${S.tiers.map(t => `<option value="${t.id}"${t.id === i.estTier ? ' selected' : ''}>${esc(t.name)} · ${money(t.listPrice)} list · ${money(creditFor(t))} credit</option>`).join('')}</select></div>
+        <div class="field"><label for="gr-${i.id}">Reject reason (optional, shown to the member)</label><select id="gr-${i.id}"><option value="">No reason given</option>${optList(REJECT_REASONS.map(r => [r, r]))}</select></div>
+        <p id="ge-${i.id}" class="err" hidden></p>
+        <div class="grid2"><button class="btn" data-act="accept" data-id="${i.id}">Accept</button><button class="btn danger" data-act="reject" data-id="${i.id}">Reject · donate</button></div>
+      </div>`).join('')}
   </div>`;
+}
+function pickupsList(orders) {
+  return orders.slice().sort((a, b) => (slotById(a.slotId)?.start || '').localeCompare(slotById(b.slotId)?.start || '')).map(o => {
+    const i = S.items.find(x => x.id === o.itemId);
+    return `<div class="panel stack"><div class="li" style="border:0;padding:0"><div class="thumb">${tile(i)}</div>
+      <div class="grow"><div class="card-title">${esc(itemName(i))}</div><div class="small muted"><span class="mono">${o.id}</span> · ${esc(S.user.name)}</div><div class="small">${esc(fmtSlot(slotById(o.slotId)))}</div></div></div>
+      <button class="btn block" data-act="markPickedUp" data-id="${o.id}">Mark picked up</button></div>`;
+  }).join('');
+}
+function listedList() {
+  const items = S.items.filter(i => i.status === 'listed').sort((a, b) => a.listedAt.localeCompare(b.listedAt));
+  if (!items.length) return '<div class="notice">Nothing is listed right now.</div>';
+  return `<p class="small muted">Oldest first. Members get ${AGED_DISCOUNT * 100}% off once an item reaches ${AGED_DAYS} days. Use "Back 30 days" to test the price drop.</p>
+    <div class="panel"><div class="list">${items.map(i => `<div class="li"><div class="thumb">${tile(i)}</div>
+      <div class="grow"><div class="card-title">${esc(itemName(i))}</div><div class="small muted">${esc(tierById(i.tier).name)} · ${plural(daysListed(i), 'day')} listed</div>
+        <div class="small mono">${money(listPrice(i))} list · ${money(memberPrice(i))} member</div></div>
+      <button class="btn small quiet" data-act="backdate" data-id="${i.id}">Back 30 days</button></div>`).join('')}</div></div>`;
+}
+function tiersForm() {
+  return `<form id="tiersForm" class="stack" novalidate>
+    <div class="notice warn small">Placeholder tiers. Which brands go in each tier, and each tier's price, are still open questions.</div>
+    ${S.tiers.map(t => `<div class="panel stack">
+      <div class="grid2">
+        <div class="field"><label for="tn-${t.id}">Name</label><input id="tn-${t.id}" value="${esc(t.name)}"></div>
+        <div class="field"><label for="tp-${t.id}">List price</label><input id="tp-${t.id}" type="number" inputmode="decimal" min="1" step="0.01" value="${t.listPrice}"></div>
+      </div>
+      <div class="field"><label for="tb-${t.id}">Brands (comma-separated)</label><textarea id="tb-${t.id}" rows="2">${esc(t.brands.join(', '))}</textarea></div>
+      <p class="small muted">Credit at ${CREDIT_RATE * 100}%: <span class="mono">${money(creditFor(t))}</span></p>
+    </div>`).join('')}
+    <p id="tsErr" class="err" hidden></p>
+    <button class="btn block" type="submit">Save tiers</button>
+    <p class="small muted">A new price applies to items already listed in that tier. Credit already given doesn't change.</p>
+  </form>`;
+}
+function saveTiers() {
+  const next = [];
+  for (const t of S.tiers) {
+    const name = document.getElementById('tn-' + t.id).value.trim();
+    const price = Number(document.getElementById('tp-' + t.id).value);
+    const brands = document.getElementById('tb-' + t.id).value.split(',').map(b => b.trim()).filter(Boolean);
+    if (!name) return showErr('tsErr', 'Every tier needs a name.');
+    if (!Number.isFinite(price) || price <= 0) return showErr('tsErr', `Enter a list price above $0 for ${name}.`);
+    next.push({ id: t.id, name, listPrice: round2(price), brands });
+  }
+  S.tiers = next; save(); render(); toast('Tiers saved.');
+}
+function slotsAdmin() {
+  const row = s => `<div class="li"><div class="grow small">${esc(fmtSlot(s))}</div><button class="btn small quiet" data-act="removeSlot" data-id="${s.id}">Remove</button></div>`;
+  const section = (type, label) => { const l = futureSlots(type); return `<div class="panel stack"><h2 class="section-title">${label}</h2>${l.length ? `<div class="list">${l.map(row).join('')}</div>` : '<p class="small muted">None open.</p>'}</div>`; };
+  return `${section('dropoff', 'Drop-off slots')}${section('pickup', 'Pickup slots')}
+    <form id="slotForm" class="panel stack" novalidate>
+      <h2 class="section-title">Add a slot</h2>
+      <div class="grid2">
+        <div class="field"><label for="slType">Type</label><select id="slType"><option value="dropoff">Drop-off</option><option value="pickup">Pickup</option></select></div>
+        <div class="field"><label for="slDate">Date</label><input id="slDate" type="date"></div>
+        <div class="field"><label for="slStart">Starts</label><input id="slStart" type="time" value="12:00"></div>
+        <div class="field"><label for="slEnd">Ends</label><input id="slEnd" type="time" value="14:00"></div>
+      </div>
+      <div class="field"><label for="slLoc">Campus location</label><input id="slLoc" placeholder="Building and spot"></div>
+      <p id="slErr" class="err" hidden></p>
+      <button class="btn block" type="submit">Add slot</button>
+    </form>`;
+}
+function addSlot() {
+  const v = id => document.getElementById(id).value.trim();
+  if (!v('slDate')) return showErr('slErr', 'Pick a date.');
+  if (!v('slLoc')) return showErr('slErr', 'Add the campus location.');
+  const start = new Date(`${v('slDate')}T${v('slStart')}`), end = new Date(`${v('slDate')}T${v('slEnd')}`);
+  if (isNaN(start) || isNaN(end)) return showErr('slErr', 'Enter a start and end time.');
+  if (end <= start) return showErr('slErr', 'The slot has to end after it starts.');
+  if (end <= new Date()) return showErr('slErr', 'That slot is already over.');
+  S.slots.push({ id: uid('SL'), type: v('slType'), location: v('slLoc'), start: start.toISOString(), end: end.toISOString() });
+  save(); render(); toast('Slot added.');
+}
+function metricsTable() {
+  const dropped = S.dropOffs.length > 0, shopped = S.orders.length > 0;
+  const rows = [
+    ['Survey responses', '100', 'Tracked in the survey tool'],
+    ['Paid members', '25', isMember() ? '1' : '0'],
+    ['Drop-offs', '40', String(S.dropOffs.length)],
+    ['Items listed', '200', String(S.items.filter(i => i.listedAt).length)],
+    ['Items sold', '75', String(S.orders.filter(o => o.status !== 'cancelled').length)],
+    ['Members who drop off and shop', '50%', dropped ? (shopped ? '100%' : '0%') : '—'],
+  ];
+  return `<div class="panel stack"><table class="tbl"><thead><tr><th>Metric</th><th class="num">Target</th><th class="num">Now</th></tr></thead>
+    <tbody>${rows.map(r => `<tr><td>${r[0]}</td><td class="num mono">${r[1]}</td><td class="num ${/^\d|^—/.test(r[2]) ? 'mono' : 'small muted'}">${r[2]}</td></tr>`).join('')}</tbody></table>
+    <p class="small muted">This prototype keeps one account per browser, so counts cover this device only. The real app counts every user from the Google Sheet.</p></div>`;
+}
+function finishDropIfGraded(dropOffId) {
+  const d = S.dropOffs.find(x => x.id === dropOffId);
+  if (d && !S.items.some(i => i.dropOffId === dropOffId && i.status === 'submitted')) d.status = 'graded';
 }
 
 // ===== ACTIONS =====
@@ -779,92 +862,55 @@ const ACT = {
   hideSignup() { S.ui.signup = false; render(); },
   demo() { S = demoState(); save(); render(); toast('Signed in to the demo account.'); },
   tab(d) { S.ui.tab = d.tab; confirming = null; save(); render(); window.scrollTo(0, 0); },
-  group(d) { S.ui.group = d.group; render(); },
+  adminTab(d) { S.ui.adminTab = d.at; save(); render(); },
   openItem(d) { sheet = { type: 'item', id: d.id }; renderSheet(); },
+  buy(d) { sheet = { type: 'checkout', id: d.id }; renderSheet(); },
   openOrder(d) { sheet = { type: 'order', id: d.id }; renderSheet(); },
-  openLocations() { sheet = { type: 'locations' }; renderSheet(); },
   closeSheet() { sheet = null; renderSheet(); },
-  cancelSwitch() { sheet = { type: 'locations' }; renderSheet(); },
-  setLoc(d) {
-    if (d.loc === S.location && !d.force) { sheet = null; render(); return; }
-    if (S.cart.ids.length && S.cart.location !== d.loc && !d.force) { sheet = { type: 'locations', pending: d.loc }; renderSheet(); return; }
-    if (d.force) S.cart = { location: null, ids: [] };
-    S.location = d.loc; S.ui.q = ''; S.ui.tab = 'shop'; sheet = null; save(); render();
-    toast(d.loc === S.user.home ? `Shopping ${LOCATIONS[d.loc].short}: ships to you.` : `Shopping ${LOCATIONS[d.loc].short}: in-store pickup only.`);
+  removePhoto() { pendingPhoto = null; document.getElementById('photoPreview').innerHTML = photoPreview(); },
+  removeDraft(d) { draftBag.splice(+d.idx, 1); render(); },
+  submitDrop() {
+    const slot = document.getElementById('doSlot');
+    if (!draftBag.length || !slot) return;
+    const d = { id: 'DO-' + (2000 + Math.floor(Math.random() * 8000)), slotId: slot.value, submittedAt: nowIso(), status: 'submitted' };
+    S.dropOffs.push(d);
+    draftBag.forEach(it => S.items.push(myItem(d.id, it.brand, it.cat, it.size, it.title, it.estTier, { id: it.id, photo: it.photo })));
+    draftBag = []; save(); render(); toast('Submitted. Bring your bag to your drop-off slot.');
   },
-  addToBag(d) {
-    if (!S.cart.ids.length) S.cart.location = S.location;
-    S.cart.ids.push(d.id); sheet = null; save(); render(); toast('Added to your bag.');
+  accept(d) {
+    const i = S.items.find(x => x.id === d.id), t = tierById(document.getElementById('gt-' + i.id).value);
+    if (!t) return showErr('ge-' + i.id, 'Choose a tier to accept this piece.');
+    const now = nowIso();
+    Object.assign(i, { status: 'listed', tier: t.id, creditAwarded: creditFor(t), listedAt: now, gradedAt: now });
+    S.ledger.push({ id: uid('CR'), date: now, amt: i.creditAwarded, type: 'earned', itemId: i.id, note: `Accepted: ${itemName(i)}` });
+    finishDropIfGraded(i.dropOffId); save(); render(); toast(`Accepted. ${money(i.creditAwarded)} credit added.`);
   },
-  removeFromBag(d) { S.cart.ids = S.cart.ids.filter(id => id !== d.id); if (!S.cart.ids.length) S.cart.location = null; if (sheet) sheet = null; save(); render(); },
-  checkout() {
-    if (!isMember()) return;
-    const items = bagItems(); if (!items.length) return;
-    const subtotal = items.reduce((a, i) => a + i.price, 0);
-    const creditUsed = S.ui.useCredit !== false ? Math.min(S.user.credit, subtotal) : 0;
-    const charge = Math.round((subtotal - creditUsed) * 100) / 100;
-    const ship = S.cart.location === S.user.home;
-    const o = { id: uid('OR'), date: new Date().toISOString(), location: S.cart.location, items: items.map(i => ({ id: i.id, title: i.title, price: i.price })), subtotal, creditUsed, charge,
-      fulfillment: ship ? 'ship' : 'pickup', address: `${S.user.street}, ${S.user.city} ${S.user.zip}`, code: ship ? null : code() };
-    items.forEach(i => { i.status = 'sold'; });
-    if (creditUsed > 0) { S.user.credit = Math.round((S.user.credit - creditUsed) * 100) / 100; S.ledger.push({ date: o.date, amt: -creditUsed, note: `Order ${o.id}` }); }
-    S.orders.push(o); S.cart = { location: null, ids: [] }; save();
-    sheet = { type: 'order', id: o.id }; S.ui.tab = 'wallet'; render();
+  reject(d) {
+    const i = S.items.find(x => x.id === d.id);
+    Object.assign(i, { status: 'rejected', rejectReason: document.getElementById('gr-' + i.id).value || null, gradedAt: nowIso() });
+    finishDropIfGraded(i.dropOffId); save(); render(); toast('Rejected. It goes in the donate pile.');
   },
-  removePhoto(d) { pendingPhotos.splice(+d.idx, 1); document.getElementById('photoPreview').innerHTML = photoPreview(); },
-  removeDraft(d) { draftBox.splice(+d.idx, 1); render(); },
-  submitBox() {
-    if (!draftBox.length) return;
-    S.tradeIns.push({ id: 'TI-' + (2000 + Math.floor(Math.random() * 8000)), created: new Date().toISOString(), status: 'review', method: null, items: draftBox });
-    draftBox = []; save(); render(); toast('Sent. Your estimate usually comes back within 24 hours.');
+  markPickedUp(d) {
+    const o = S.orders.find(x => x.id === d.id);
+    o.status = 'pickedup'; o.pickedUpAt = nowIso();
+    S.items.find(x => x.id === o.itemId).status = 'pickedup';
+    save(); render(); toast(`${o.id} picked up.`);
   },
-  acceptOffer(d) {
-    const t = S.tradeIns.find(x => x.id === d.id);
-    t.status = 'inbound'; t.method = d.method;
-    if (d.method === 'ship') t.tracking = '1Z' + code() + code(); else t.dropCode = code();
-    save(); render();
-  },
-  declineOffer(d) { S.tradeIns.find(x => x.id === d.id).status = 'declined'; save(); render(); },
-  markShipped(d) { S.tradeIns.find(x => x.id === d.id).shipped = new Date().toISOString(); save(); render(); },
-  staffTab(d) { S.ui.staffTab = d.st; render(); },
-  sendEstimate(d) {
-    const t = S.tradeIns.find(x => x.id === d.id);
-    t.items.forEach((i, idx) => {
-      i.trend = document.getElementById(`tr-${t.id}-${idx}`).value;
-      i.cond = document.getElementById(`co-${t.id}-${idx}`).value;
-      const dn = document.getElementById(`dn-${t.id}-${idx}`).value;
-      if (dn) { i.status = 'denied'; i.reason = dn.replace(/^Decline: /, ''); i.payout = null; }
-      else { i.status = 'offered'; i.payout = valuate(i.cat, i.tier, i.cond, i.trend).payout; }
-    });
-    t.status = t.items.some(i => i.status === 'offered') ? 'offer' : 'closed';
-    save(); render(); toast(`Estimate sent for ${t.id}.`);
-  },
-  finishInspection(d) {
-    const t = S.tradeIns.find(x => x.id === d.id);
-    let earned = 0, n = 0;
-    t.items.forEach((i, idx) => {
-      if (i.status !== 'offered') return;
-      const dn = document.getElementById(`in-${t.id}-${idx}`).value;
-      if (dn) { i.status = 'denied'; i.reason = dn.replace(/^Decline: /, ''); i.inspected = true; return; }
-      i.status = 'accepted'; earned += i.payout; n++;
-      const v = valuate(i.cat, i.tier, i.cond, i.trend);
-      S.inventory.push({ id: 'RR-' + (1100 + S.inventory.length), location: S.user.home, title: `${i.brand} ${CATS[i.cat].label.toLowerCase()}`, brand: i.brand, tier: i.tier, cat: i.cat, size: i.size,
-        cond: i.cond, trend: i.trend, paid: i.payout, price: i.payout + v.markup, photo: i.photos[0] || null, status: 'available', listed: new Date().toISOString(), fromTrade: t.id });
-    });
-    t.status = 'complete';
-    if (earned) { S.user.credit += earned; S.ledger.push({ date: new Date().toISOString(), amt: earned, note: `Trade-in ${t.id} · ${n} item${n === 1 ? '' : 's'} accepted` }); }
-    save(); render(); toast(`${money(earned)} credit issued for ${t.id}.`);
+  backdate(d) { const i = S.items.find(x => x.id === d.id); i.listedAt = new Date(new Date(i.listedAt) - AGED_DAYS * DAY).toISOString(); save(); render(); },
+  removeSlot(d) {
+    const inUse = S.orders.some(o => o.status === 'paid' && o.slotId === d.id) || S.dropOffs.some(x => x.status === 'submitted' && x.slotId === d.id);
+    if (inUse) return toast('Someone is booked into that slot, so it can\'t be removed.');
+    S.slots = S.slots.filter(s => s.id !== d.id); save(); render();
   },
   confirm(d) { confirming = d.key; render(); },
   unconfirm() { confirming = null; render(); },
-  cancelMembership() { S.user.membership.status = 'paused'; confirming = null; save(); render(); toast('Membership paused. Your credit is safe.'); },
-  resume() { const m = S.user.membership; m.status = 'active'; m.lastCharge = new Date().toISOString(); m.renews = daysAhead(30); save(); render(); toast(`Membership resumed. ${money(MEMBERSHIP_PRICE)} charged to ••${S.user.card.last4}.`); },
-  reset() { try { localStorage.removeItem(KEY); } catch (e) {} S = freshState(); confirming = null; sheet = null; draftBox = []; pendingPhotos = []; render(); },
+  cancelMembership() { S.user.membership.status = 'lapsed'; confirming = null; save(); render(); toast('Membership cancelled. Your credit is kept.'); },
+  reset() { try { localStorage.removeItem(KEY); } catch (e) {} S = freshState(); confirming = null; sheet = null; draftBag = []; pendingPhoto = null; render(); },
 };
 
 document.addEventListener('click', e => {
   const a = e.target.closest('[data-act]');
-  if (!a) return;
+  if (!a || !ACT[a.dataset.act]) return;
   // The scrim only closes the sheet when the click lands on the scrim itself.
   if (a.classList.contains('scrim') && e.target !== a) return;
   ACT[a.dataset.act](a.dataset, e);
@@ -872,59 +918,40 @@ document.addEventListener('click', e => {
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && sheet) { sheet = null; renderSheet(); } });
 
 document.addEventListener('input', e => {
-  if (e.target.id === 'q') { S.ui.q = e.target.value; document.getElementById('grid').innerHTML = gridHTML(); }
+  const t = e.target;
+  if (t.id === 'q') { S.ui.q = t.value; document.getElementById('grid').innerHTML = gridHTML(); }
+  if (t.id === 'tiBrand') document.getElementById('estimate').innerHTML = estimateHTML(t.value);
+  if (t.id === 'coCredit') {
+    const i = S.items.find(x => x.id === sheet.id), r = readCredit(i);
+    document.getElementById('coSummary').innerHTML = coSummary(priceFor(i), r.err ? 0 : r.credit);
+  }
 });
 document.addEventListener('change', async e => {
   const t = e.target;
-  if (t.id === 'useCredit') { S.ui.useCredit = t.checked; save(); render(); }
-  if (t.id === 'staffToggle') { S.staff = t.checked; if (!S.staff && S.ui.tab === 'staff') S.ui.tab = 'account'; save(); render(); if (S.staff) toast('Warehouse tab added to the menu.'); }
-  if (['tiCat', 'tiTier', 'tiCond'].includes(t.id)) {
-    document.getElementById('ballpark').innerHTML = ballparkHTML(document.getElementById('tiCat').value, document.getElementById('tiTier').value, document.getElementById('tiCond').value);
-  }
-  if (t.hasAttribute('data-recalc')) {
-    const [, tid, idx] = t.id.match(/^\w+-(.+)-(\d+)$/);
-    const tr = S.tradeIns.find(x => x.id === tid), item = tr.items[+idx];
-    const trend = document.getElementById(`tr-${tid}-${idx}`).value, cond = document.getElementById(`co-${tid}-${idx}`).value;
-    document.getElementById(`pv-${tid}-${idx}`).innerHTML = staffPreview(item, trend, cond, document.getElementById(`dn-${tid}-${idx}`).value);
-  }
-  if (t.id === 'tiPhotos' && t.files.length) {
-    const files = [...t.files].slice(0, 4 - pendingPhotos.length);
-    for (const f of files) { try { pendingPhotos.push(await shrink(f)); } catch (err) { toast('That file isn\'t an image we can read.'); } }
+  if (t.dataset.filter) { S.ui[t.dataset.filter] = t.value; save(); document.getElementById('grid').innerHTML = gridHTML(); }
+  if (t.id === 'doSlot') { S.ui.doSlot = t.value; save(); }
+  if (t.id === 'adminToggle') { S.admin = t.checked; if (!S.admin && S.ui.tab === 'admin') S.ui.tab = 'account'; save(); render(); if (S.admin) toast('Admin tab added to the menu.'); }
+  if (t.id === 'tiPhoto' && t.files.length) {
+    try { pendingPhoto = await shrink(t.files[0]); } catch (err) { toast('That file isn\'t an image we can read.'); }
     document.getElementById('photoPreview').innerHTML = photoPreview();
   }
 });
 document.addEventListener('submit', e => {
   e.preventDefault();
-  if (e.target.id === 'signupForm') return signup();
-  if (e.target.id === 'itemForm') return addItem();
+  const handlers = { signupForm: signup, memberForm: startMembership, itemForm: addItem, checkoutForm: () => placeOrder(e.target), tiersForm: saveTiers, slotForm: addSlot };
+  if (handlers[e.target.id]) handlers[e.target.id]();
 });
 
 function signup() {
-  const v = id => document.getElementById(id).value.trim();
-  const err = msg => { const el = document.getElementById('suErr'); el.textContent = msg; el.hidden = false; };
-  const name = v('suName'), email = v('suEmail'), street = v('suStreet'), city = v('suCity'), zip = v('suZip');
-  if (!name || !email || !street || !city || !zip) return err('Fill in every field so we know where to ship.');
-  if (!/^\S+@\S+\.\S+$/.test(email)) return err('Enter a valid email address.');
-  if (!/^\d{5}$/.test(zip)) return err('Enter a 5-digit ZIP code.');
-  const home = Object.values(LOCATIONS).find(l => l.zips.includes(zip));
-  if (!home) return err(`ReRack memberships are only open to Orem and Provo addresses right now (ZIPs ${LOCATIONS.provo.zips.join(', ')}). We'll open more areas as new warehouses launch.`);
-  const card = readCard('su');
-  if (card.err) return err(card.err);
-  const now = new Date().toISOString();
-  S.user = { name, email, street, city, zip, home: home.id, credit: 0, card: { last4: card.last4 }, membership: { status: 'active', since: now, renews: daysAhead(30), lastCharge: now } };
-  S.location = home.id; S.ui.signup = false; S.ui.tab = 'trade';
-  save(); render(); toast(`Welcome to ReRack! ${money(MEMBERSHIP_PRICE)} charged to ••${card.last4}.`);
+  const name = document.getElementById('suName').value.trim(), email = document.getElementById('suEmail').value.trim();
+  if (!name || !email) return showErr('suErr', 'Add your name and BYU email.');
+  if (!/^\S+@\S+\.\S+$/.test(email)) return showErr('suErr', 'Enter a valid email address.');
+  if (!SCHOOL_DOMAIN.test(email)) return showErr('suErr', 'ReRack is only open to BYU students right now. Sign up with your byu.edu email.');
+  S.user = { name, email, card: null, membership: { status: 'none', since: null, renews: null } };
+  S.ui.signup = false; S.ui.tab = 'shop';
+  save(); render(); toast('Account created. Become a member any time to drop off clothes.');
 }
-function addItem() {
-  const v = id => document.getElementById(id).value.trim();
-  const err = msg => { const el = document.getElementById('tiErr'); el.textContent = msg; el.hidden = false; };
-  if (!pendingPhotos.length) return err('Add at least one photo so our team can judge style and condition.');
-  if (!v('tiBrand')) return err('Add the brand (check the tag).');
-  if (!v('tiSize')) return err('Add the size.');
-  draftBox.push({ id: uid('IT'), photos: pendingPhotos.slice(), cat: v('tiCat'), brand: v('tiBrand'), tier: v('tiTier'), size: v('tiSize'), cond: v('tiCond'), note: v('tiNote'), trend: null, status: 'pending', reason: null, payout: null });
-  pendingPhotos = []; render();
-}
-// Downscale photos so a box of trade-ins fits in browser storage.
+// Downscale photos so a bag of drop-offs fits in browser storage.
 function shrink(file) {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
